@@ -2,8 +2,7 @@
 
 Dashboard analisis & peramalan cerdas data kunjungan Puskesmas dengan arsitektur **Ensemble Model: Prophet + XGBoost + SARIMA + Auto-Selection**.
 
-> Dikembangkan untuk UPT Puskesmas Purwosari, Kabupaten Bojonegoro  
-> Bagian dari Proyek Aktualisasi Latsar CPNS 2026
+> Dikembangkan untuk UPT Puskesmas Purwosari, Kabupaten Bojonegoro
 
 ---
 
@@ -220,7 +219,7 @@ File CSV atau Excel dengan kolom-kolom berikut (nama fleksibel, sistem auto-dete
 
 ## 📞 Kontak
 
-Dikembangkan oleh peserta Latsar CPNS 2026  
+Dikembangkan oleh Tim IT, 
 UPT Puskesmas Purwosari, Kabupaten Bojonegoro
 
 Untuk pertanyaan atau masukan, buka **Issue** di repositori ini.

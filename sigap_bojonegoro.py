@@ -1068,7 +1068,7 @@ Jawab pertanyaan berikut secara spesifik, berbasis data, dan terstruktur:
 {user_q}"""
         with st.spinner("AI menganalisis..."):
             try:
-                model = genai.GenerativeModel("gemini-2.5-flash")
+                model = genai.GenerativeModel("gemini-3.6-flash")
                 resp  = model.generate_content(prompt)
                 st.markdown("### 📊 Analisis AI:")
                 st.markdown(resp.text)

@@ -1,4 +1,4 @@
-# 🏥 PuskesmasApp — Ensemble AI Forecasting Dashboard
+# 🏥 SIGAP-Bojonegoro — Ensemble AI Forecasting Dashboard
 
 Dashboard analisis & peramalan cerdas data kunjungan Puskesmas dengan arsitektur **Ensemble Model: Prophet + XGBoost + SARIMA + Auto-Selection**.
 
@@ -90,8 +90,8 @@ Data Input (6–12 bulan, agregat mingguan/bulanan)
 
 ### 1. Clone repositori
 ```bash
-git clone https://github.com/Polymorph225/PuskesmasApp.git
-cd PuskesmasApp
+git clone https://github.com/Polymorph225/SIGAP-Bojonegoro.git
+cd SIGAP-Bojonegoro
 ```
 
 ### 2. Buat virtual environment (disarankan)
@@ -121,7 +121,7 @@ GEMINI_API_KEY = "ISI_API_KEY_GOOGLE_ANDA"
 
 ### 5. Jalankan aplikasi
 ```bash
-streamlit run Puskesmas_app.py
+streamlit run sigap_bojonegoro.py
 ```
 Buka browser di `http://localhost:8501`
 
@@ -130,9 +130,9 @@ Buka browser di `http://localhost:8501`
 ## 📂 Struktur Repositori
 
 ```
-PuskesmasApp/
+SIGAP-Bojonegoro/
 │
-├── Puskesmas_app.py          # 🔑 Kode utama aplikasi Streamlit
+├── sigap_bojonegoro.py          # 🔑 Kode utama aplikasi Streamlit
 ├── requirements.txt          # Daftar library Python
 ├── README.md                 # Dokumentasi ini
 │

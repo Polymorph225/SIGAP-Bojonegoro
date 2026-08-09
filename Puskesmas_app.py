@@ -33,7 +33,7 @@ warnings.filterwarnings('ignore')
 # KONFIGURASI HALAMAN
 # ============================================================
 st.set_page_config(
-    page_title="Dashboard Puskesmas – Ensemble AI Forecasting",
+    page_title="SIGAP-Bojonegoro – Ensemble AI Forecasting",
     page_icon="🏥",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -88,7 +88,8 @@ inject_custom_css()
 # ============================================================
 # HEADER
 # ============================================================
-st.title("📊 Dashboard Analisis Data Puskesmas")
+st.title("📊 SIGAP-Bojonegoro")
+st.caption("Sistem Informasi Geospasial & Analitik Prediktif — Dashboard Analisis Data Kunjungan Puskesmas")
 col_header1, col_header2 = st.columns([2, 1])
 
 with col_header1:

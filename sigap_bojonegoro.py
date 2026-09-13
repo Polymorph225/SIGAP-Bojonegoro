@@ -983,7 +983,10 @@ def page_peta_persebaran(df_filtered, filter_info):
     df_grouped["latitude"]  = df_grouped["desa"].apply(lambda x: get_koord(x)[0])
     df_grouped["longitude"] = df_grouped["desa"].apply(lambda x: get_koord(x)[1])
     
-    fig = px.scatter_mapbox(
+    # Catatan: px.scatter_mapbox() dihapus total di Plotly 7.0 (diganti px.scatter_map(),
+    # berbasis MapLibre — tidak butuh Mapbox token). "mapbox_style" juga berganti nama
+    # menjadi "map_style" di update_layout.
+    fig = px.scatter_map(
         df_grouped, lat="latitude", lon="longitude",
         color="diagnosa", size="jumlah_kasus",
         hover_name="desa", hover_data={"diagnosa":True,"jumlah_kasus":True},
@@ -991,7 +994,7 @@ def page_peta_persebaran(df_filtered, filter_info):
         zoom=11.5, center={"lat":-7.218,"lon":111.675}, height=550,
         color_discrete_sequence=px.colors.qualitative.Plotly,
     )
-    fig.update_layout(mapbox_style="carto-positron", margin={"r":0,"t":0,"l":0,"b":0})
+    fig.update_layout(map_style="carto-positron", margin={"r":0,"t":0,"l":0,"b":0})
     
     st.markdown("*(💡 Klik salah satu titik/lingkaran pada peta untuk melihat detail data dari desa tersebut)*")
     

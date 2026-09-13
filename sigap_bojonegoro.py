@@ -407,12 +407,12 @@ def run_xgboost(train_df, periods, freq="W-MON"):
     y_pred_train = model.predict(X_train)
     metrics = eval_metrics(y_train, y_pred_train)
 
-    # Iterative future prediction
-    last_date   = train_df["ds"].max()
-    history_y   = list(train_df["y"].values)
-    future_rows = []
-    for i in range(periods):
-        next_date = last_date + pd.Timedelta(weeks=i+1)
+    # Iterative future prediction — mengikuti frekuensi (mingguan/bulanan) yang dipilih user
+    last_date    = train_df["ds"].max()
+    future_dates = pd.date_range(start=last_date, periods=periods + 1, freq=freq)[1:]
+    history_y    = list(train_df["y"].values)
+    future_rows  = []
+    for next_date in future_dates:
         row = {
             # ── FIX: isocalendar() mengembalikan named tuple; ambil elemen ke-2 (week) ──
             "week_of_year": int(next_date.isocalendar()[1]),
@@ -441,12 +441,14 @@ def run_xgboost(train_df, periods, freq="W-MON"):
 
 
 # ── SARIMA ───────────────────────────────────────────────────
-def run_sarima(train_df, periods):
-    """Fit SARIMA(1,1,1)(1,1,0,52) dan prediksi."""
-    ts = train_df.set_index("ds")["y"].asfreq("W-MON").ffill()
+def run_sarima(train_df, periods, freq="W-MON"):
+    """Fit SARIMA dan prediksi, mengikuti frekuensi (mingguan/bulanan) yang dipilih user.
+    Periode musiman: 52 untuk mingguan, 12 untuk bulanan."""
+    seasonal_period = 52 if freq == "W-MON" else 12
+    ts = train_df.set_index("ds")["y"].asfreq(freq).ffill()
     try:
         model = SARIMAX(
-            ts, order=(1,1,1), seasonal_order=(1,1,0,52),
+            ts, order=(1,1,1), seasonal_order=(1,1,0,seasonal_period),
             enforce_stationarity=False, enforce_invertibility=False,
         )
         fit   = model.fit(disp=False, maxiter=200)
@@ -475,17 +477,20 @@ def run_sarima(train_df, periods):
 
 
 # ── Ensemble Auto-Selection ───────────────────────────────────
-def ensemble_forecast(train_df: pd.DataFrame, periods: int):
+def ensemble_forecast(train_df: pd.DataFrame, periods: int, freq: str = "W-MON"):
     """
     Jalankan ketiga model, evaluasi MAPE, buat weighted ensemble,
     dan pilih model terbaik otomatis.
+    `freq` diteruskan ke semua model agar tanggal prediksi konsisten
+    dengan frekuensi (mingguan/bulanan) yang dipilih user, sehingga
+    prediksi benar-benar mencapai tanggal target yang diminta.
     """
     results = {}
 
     # Prophet
     with st.spinner("🔵 Melatih Prophet..."):
         try:
-            fc_p, met_p, _ = run_prophet(train_df, periods)
+            fc_p, met_p, _ = run_prophet(train_df, periods, freq=freq)
             results["Prophet"] = {"fc": fc_p, "metrics": met_p}
         except Exception as e:
             st.warning(f"Prophet gagal: {e}")
@@ -493,7 +498,7 @@ def ensemble_forecast(train_df: pd.DataFrame, periods: int):
     # XGBoost
     with st.spinner("🟢 Melatih XGBoost..."):
         try:
-            fc_x, met_x = run_xgboost(train_df, periods)
+            fc_x, met_x = run_xgboost(train_df, periods, freq=freq)
             if fc_x is not None:
                 results["XGBoost"] = {"fc": fc_x, "metrics": met_x}
         except Exception as e:
@@ -502,7 +507,7 @@ def ensemble_forecast(train_df: pd.DataFrame, periods: int):
     # SARIMA
     with st.spinner("🟡 Melatih SARIMA..."):
         try:
-            fc_s, met_s = run_sarima(train_df, periods)
+            fc_s, met_s = run_sarima(train_df, periods, freq=freq)
             if fc_s is not None:
                 results["SARIMA"] = {"fc": fc_s, "metrics": met_s}
         except Exception as e:
@@ -636,7 +641,7 @@ def page_ml_upgraded(df_filtered, filter_info):
 
     # ── Jalankan Ensemble ─────────────────────────────────────
     if st.button("🚀 Jalankan Ensemble Forecasting", type="primary"):
-        results, best_name, best_fc, ensemble_fc = ensemble_forecast(weekly, periods)
+        results, best_name, best_fc, ensemble_fc = ensemble_forecast(weekly, periods, freq=freq)
 
         if not results:
             st.error("Semua model gagal. Coba dengan data lebih panjang.")

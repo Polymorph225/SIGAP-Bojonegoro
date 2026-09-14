@@ -498,6 +498,9 @@ def _safe_run(fn, *args, **kwargs):
         return None, str(e)
 
 
+# Cache: menghindari re-training 3 model dari nol setiap kali skrip Streamlit
+# rerun (mis. widget lain disentuh, tombol download diklik) selama data,
+# periods, dan freq-nya sama persis dengan run sebelumnya.
 @st.cache_data(show_spinner=False, ttl=3600)
 def ensemble_forecast(train_df: pd.DataFrame, periods: int, freq: str = "W-MON"):
     """
@@ -690,6 +693,13 @@ def page_ml_upgraded(df_filtered, filter_info):
     st.info(f"📊 Data: **{len(weekly)}** titik · Prediksi: **{periods}** {'minggu' if freq=='W-MON' else 'bulan'} ke depan")
 
     # ── Jalankan Ensemble ─────────────────────────────────────
+    # Hasil disimpan di st.session_state (bukan langsung ditampilkan di dalam
+    # blok `if st.button(...)`) supaya TIDAK hilang saat skrip Streamlit rerun
+    # karena interaksi lain — mis. klik tombol "Download Prediksi (Excel)" di
+    # bawah, yang juga memicu rerun, sebelumnya membuat seluruh hasil di atasnya
+    # langsung menghilang karena status tombol "Jalankan" kembali False.
+    run_key = f"{kolom_fokus}|{pilihan_item}|{freq}|{periods}|{len(weekly)}"
+
     if st.button("🚀 Jalankan Ensemble Forecasting", type="primary"):
         with st.spinner("🔄 Melatih Prophet, XGBoost & SARIMA (paralel)..."):
             results, best_name, best_fc, ensemble_fc, model_errors = ensemble_forecast(
@@ -699,128 +709,144 @@ def page_ml_upgraded(df_filtered, filter_info):
         for name, err in (model_errors or {}).items():
             st.warning(f"{name} gagal: {err}")
 
-        if not results:
-            st.error("Semua model gagal. Coba dengan data lebih panjang.")
-            return
+        st.session_state["ensemble_run"] = {
+            "key": run_key, "results": results, "best_name": best_name,
+            "best_fc": best_fc, "ensemble_fc": ensemble_fc,
+        }
 
-        st.success(f"✅ Selesai! Model terbaik: **{best_name}**")
+    saved = st.session_state.get("ensemble_run")
+    if not saved or saved["key"] != run_key:
+        if saved:
+            st.caption("ℹ️ Pilihan berubah — klik \"Jalankan Ensemble Forecasting\" lagi untuk hasil terbaru.")
+        return
 
-        # ── Tabel Evaluasi Akurasi ────────────────────────────
-        st.markdown("### 📊 Evaluasi Akurasi Model")
-        st.markdown("""
-        > **MAE** = rata-rata error absolut · **RMSE** = root mean square error · **MAPE** = error persentase rata-rata
-        > MAPE < 10% = Sangat Baik · 10–20% = Baik · > 20% = Perlu Perbaikan
-        """)
-        eval_rows = []
-        for name, r in results.items():
-            if r["metrics"]:
-                row = {"Model": name, **r["metrics"]}
-                row["Status"] = "🏆 Terbaik" if name == best_name else ""
-                eval_rows.append(row)
+    results     = saved["results"]
+    best_name   = saved["best_name"]
+    best_fc     = saved["best_fc"]
+    ensemble_fc = saved["ensemble_fc"]
 
-        eval_df = pd.DataFrame(eval_rows)
-        st.dataframe(
-            eval_df.style.highlight_min(subset=["MAE","RMSE","MAPE"], color="#d1fae5"),
-            use_container_width=True,
-            hide_index=True,
+    if not results:
+        st.error("Semua model gagal. Coba dengan data lebih panjang.")
+        return
+
+    st.success(f"✅ Selesai! Model terbaik: **{best_name}**")
+
+    # ── Tabel Evaluasi Akurasi ────────────────────────────
+    st.markdown("### 📊 Evaluasi Akurasi Model")
+    st.markdown("""
+    > **MAE** = rata-rata error absolut · **RMSE** = root mean square error · **MAPE** = error persentase rata-rata
+    > MAPE < 10% = Sangat Baik · 10–20% = Baik · > 20% = Perlu Perbaikan
+    """)
+    eval_rows = []
+    for name, r in results.items():
+        if r["metrics"]:
+            row = {"Model": name, **r["metrics"]}
+            row["Status"] = "🏆 Terbaik" if name == best_name else ""
+            eval_rows.append(row)
+
+    eval_df = pd.DataFrame(eval_rows)
+    st.dataframe(
+        eval_df.style.highlight_min(subset=["MAE","RMSE","MAPE"], color="#d1fae5"),
+        use_container_width=True,
+        hide_index=True,
+    )
+
+    # ── Grafik Perbandingan Model ─────────────────────────
+    st.markdown(f"### 📈 Perbandingan Prediksi: **{pilihan_item}**")
+    fig = go.Figure()
+
+    # Aktual
+    fig.add_trace(go.Scatter(
+        x=weekly["ds"], y=weekly["y"],
+        mode="lines+markers", name="Aktual",
+        line=dict(color="#1d4ed8", width=2),
+    ))
+
+    colors = {"Prophet": "#ef4444", "XGBoost": "#16a34a", "SARIMA": "#d97706"}
+    for name, r in results.items():
+        fc = r["fc"]
+        fc_future = fc[fc["ds"] > last_date_ts]
+        if "yhat" in fc.columns:
+            fig.add_trace(go.Scatter(
+                x=fc_future["ds"], y=fc_future["yhat"].clip(lower=0),
+                mode="lines", name=f"{name}",
+                line=dict(color=colors.get(name, "#6b7280"), width=2, dash="dot"),
+            ))
+
+    # Ensemble
+    if ensemble_fc is not None:
+        ens_future = ensemble_fc[ensemble_fc["ds"] > last_date_ts]
+        if not ens_future.empty:
+            fig.add_trace(go.Scatter(
+                x=ens_future["ds"], y=ens_future["yhat_ensemble"].clip(lower=0),
+                mode="lines+markers", name="⭐ Ensemble",
+                line=dict(color="#7c3aed", width=3),
+            ))
+
+    # Best model confidence interval (Prophet saja yang punya CI lengkap)
+    if "Prophet" in results and best_name == "Prophet":
+        fc_p = results["Prophet"]["fc"]
+        fc_p_future = fc_p[fc_p["ds"] > last_date_ts]
+        if {"yhat_upper","yhat_lower"}.issubset(fc_p_future.columns):
+            fig.add_trace(go.Scatter(
+                x=fc_p_future["ds"].tolist() + fc_p_future["ds"].tolist()[::-1],
+                y=fc_p_future["yhat_upper"].tolist() + fc_p_future["yhat_lower"].tolist()[::-1],
+                fill="toself", fillcolor="rgba(239,68,68,0.15)",
+                line=dict(color="rgba(255,255,255,0)"),
+                name="CI Prophet 80%", hoverinfo="skip",
+            ))
+
+    fig.update_layout(
+        xaxis_title="Periode", yaxis_title="Jumlah Kunjungan",
+        hovermode="x unified",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02),
+        margin=dict(l=0, r=0, t=30, b=0),
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+    # ── Ringkasan Estimasi ────────────────────────────────
+    st.markdown(f"### 📢 Kesimpulan Estimasi Hingga {target_dt.strftime('%d %B %Y')}")
+
+    # Gunakan ensemble atau best model
+    use_fc = None
+    use_label = ""
+    if ensemble_fc is not None and "yhat_ensemble" in ensemble_fc.columns:
+        use_fc    = ensemble_fc[ensemble_fc["ds"] > last_date_ts][["ds","yhat_ensemble"]].rename(columns={"yhat_ensemble":"yhat"})
+        use_label = "Ensemble (berbobot)"
+    elif best_fc is not None and "yhat" in best_fc.columns:
+        use_fc    = best_fc[best_fc["ds"] > last_date_ts][["ds","yhat"]]
+        use_label = best_name
+
+    if use_fc is not None and not use_fc.empty:
+        use_fc["yhat"] = use_fc["yhat"].clip(lower=0)
+        total_est      = int(round(use_fc["yhat"].sum()))
+        akhir_row      = use_fc.iloc[-1]
+        tgl_akhir      = akhir_row["ds"].strftime("%d %B %Y")
+        est_akhir      = int(round(akhir_row["yhat"]))
+
+        col_a, col_b, col_c = st.columns([2, 1, 1])
+        with col_a:
+            st.markdown(f"""
+            <div class="accuracy-box">
+            <div class="highlight-estimasi">
+            📆 Hingga <b>{tgl_akhir}</b>, model <b>{use_label}</b> memperkirakan 
+            total akumulasi <b>{total_est:,} kunjungan/kasus</b> untuk <b>{pilihan_item}</b>.<br><br>
+            Pada periode terakhir, diperkirakan <b>{est_akhir} kunjungan</b> baru.
+            </div></div>
+            """.replace(",","."), unsafe_allow_html=True)
+        with col_b:
+            st.metric("Total Estimasi Akumulasi", f"{total_est:,}".replace(",","."))
+        with col_c:
+            st.metric("Estimasi Periode Terakhir", f"{est_akhir}")
+
+        # Download
+        dl_df = use_fc.copy()
+        dl_df.columns = ["Periode","Prediksi_Jumlah"]
+        st.download_button(
+            "📥 Download Prediksi (Excel)",
+            convert_df_to_excel(dl_df),
+            f"prediksi_{pilihan_item.lower().replace(' ','_')}.xlsx",
         )
-
-        # ── Grafik Perbandingan Model ─────────────────────────
-        st.markdown(f"### 📈 Perbandingan Prediksi: **{pilihan_item}**")
-        fig = go.Figure()
-
-        # Aktual
-        fig.add_trace(go.Scatter(
-            x=weekly["ds"], y=weekly["y"],
-            mode="lines+markers", name="Aktual",
-            line=dict(color="#1d4ed8", width=2),
-        ))
-
-        colors = {"Prophet": "#ef4444", "XGBoost": "#16a34a", "SARIMA": "#d97706"}
-        for name, r in results.items():
-            fc = r["fc"]
-            fc_future = fc[fc["ds"] > last_date_ts]
-            if "yhat" in fc.columns:
-                fig.add_trace(go.Scatter(
-                    x=fc_future["ds"], y=fc_future["yhat"].clip(lower=0),
-                    mode="lines", name=f"{name}",
-                    line=dict(color=colors.get(name, "#6b7280"), width=2, dash="dot"),
-                ))
-
-        # Ensemble
-        if ensemble_fc is not None:
-            ens_future = ensemble_fc[ensemble_fc["ds"] > last_date_ts]
-            if not ens_future.empty:
-                fig.add_trace(go.Scatter(
-                    x=ens_future["ds"], y=ens_future["yhat_ensemble"].clip(lower=0),
-                    mode="lines+markers", name="⭐ Ensemble",
-                    line=dict(color="#7c3aed", width=3),
-                ))
-
-        # Best model confidence interval (Prophet saja yang punya CI lengkap)
-        if "Prophet" in results and best_name == "Prophet":
-            fc_p = results["Prophet"]["fc"]
-            fc_p_future = fc_p[fc_p["ds"] > last_date_ts]
-            if {"yhat_upper","yhat_lower"}.issubset(fc_p_future.columns):
-                fig.add_trace(go.Scatter(
-                    x=fc_p_future["ds"].tolist() + fc_p_future["ds"].tolist()[::-1],
-                    y=fc_p_future["yhat_upper"].tolist() + fc_p_future["yhat_lower"].tolist()[::-1],
-                    fill="toself", fillcolor="rgba(239,68,68,0.15)",
-                    line=dict(color="rgba(255,255,255,0)"),
-                    name="CI Prophet 80%", hoverinfo="skip",
-                ))
-
-        fig.update_layout(
-            xaxis_title="Periode", yaxis_title="Jumlah Kunjungan",
-            hovermode="x unified",
-            legend=dict(orientation="h", yanchor="bottom", y=1.02),
-            margin=dict(l=0, r=0, t=30, b=0),
-        )
-        st.plotly_chart(fig, use_container_width=True)
-
-        # ── Ringkasan Estimasi ────────────────────────────────
-        st.markdown(f"### 📢 Kesimpulan Estimasi Hingga {target_dt.strftime('%d %B %Y')}")
-
-        # Gunakan ensemble atau best model
-        use_fc = None
-        use_label = ""
-        if ensemble_fc is not None and "yhat_ensemble" in ensemble_fc.columns:
-            use_fc    = ensemble_fc[ensemble_fc["ds"] > last_date_ts][["ds","yhat_ensemble"]].rename(columns={"yhat_ensemble":"yhat"})
-            use_label = "Ensemble (berbobot)"
-        elif best_fc is not None and "yhat" in best_fc.columns:
-            use_fc    = best_fc[best_fc["ds"] > last_date_ts][["ds","yhat"]]
-            use_label = best_name
-
-        if use_fc is not None and not use_fc.empty:
-            use_fc["yhat"] = use_fc["yhat"].clip(lower=0)
-            total_est      = int(round(use_fc["yhat"].sum()))
-            akhir_row      = use_fc.iloc[-1]
-            tgl_akhir      = akhir_row["ds"].strftime("%d %B %Y")
-            est_akhir      = int(round(akhir_row["yhat"]))
-
-            col_a, col_b, col_c = st.columns([2, 1, 1])
-            with col_a:
-                st.markdown(f"""
-                <div class="accuracy-box">
-                <div class="highlight-estimasi">
-                📆 Hingga <b>{tgl_akhir}</b>, model <b>{use_label}</b> memperkirakan 
-                total akumulasi <b>{total_est:,} kunjungan/kasus</b> untuk <b>{pilihan_item}</b>.<br><br>
-                Pada periode terakhir, diperkirakan <b>{est_akhir} kunjungan</b> baru.
-                </div></div>
-                """.replace(",","."), unsafe_allow_html=True)
-            with col_b:
-                st.metric("Total Estimasi Akumulasi", f"{total_est:,}".replace(",","."))
-            with col_c:
-                st.metric("Estimasi Periode Terakhir", f"{est_akhir}")
-
-            # Download
-            dl_df = use_fc.copy()
-            dl_df.columns = ["Periode","Prediksi_Jumlah"]
-            st.download_button(
-                "📥 Download Prediksi (Excel)",
-                convert_df_to_excel(dl_df),
-                f"prediksi_{pilihan_item.lower().replace(' ','_')}.xlsx",
-            )
 
 
 # ══════════════════════════════════════════════════════════════

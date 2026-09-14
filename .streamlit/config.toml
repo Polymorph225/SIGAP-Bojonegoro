@@ -1,0 +1,13 @@
+# Tema dasar Streamlit untuk SIGAP-Bojonegoro.
+# Warna di sini dipakai widget bawaan (sidebar, input, tabel) supaya
+# senada dengan CSS kustom di sigap_bojonegoro.py.
+[theme]
+base                    = "light"
+primaryColor            = "#1e5eff"
+backgroundColor         = "#f7f9fc"
+secondaryBackgroundColor= "#ffffff"
+textColor               = "#0f172a"
+font                    = "sans serif"
+
+[client]
+toolbarMode = "minimal"

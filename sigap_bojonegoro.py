@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import numpy as np
 import os
@@ -41,45 +42,187 @@ st.set_page_config(
 )
 
 # ============================================================
-# CSS
+# TEMA / CSS
 # ============================================================
 def inject_custom_css():
     st.markdown("""
     <style>
-    .block-container { padding: 1.5rem 2rem 3rem 2rem; }
-    h1 { font-weight: 700 !important; }
-    div[data-testid="metric-container"] {
-        padding: 0.75rem 1rem;
-        border-radius: 0.75rem;
-        background-color: var(--secondary-background-color);
-        border: 1px solid var(--faded-text-color);
-        box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+    /* ── Palet & token kedalaman ──────────────────────────── */
+    :root {
+        --sigap-blue:      #1e5eff;
+        --sigap-blue-deep: #1039a8;
+        --sigap-cyan:      #06b6d4;
+        --sigap-ink:       #0f172a;
+        --sigap-muted:     #56637a;
+        --sigap-line:      rgba(148,163,184,.30);
+        --sigap-surface:   rgba(255,255,255,.74);
+
+        /* bayangan berlapis: dekat + jauh, supaya terasa mengambang */
+        --lift-1: 0 1px 2px rgba(15,23,42,.05), 0 2px 6px rgba(15,23,42,.06);
+        --lift-2: 0 2px 4px rgba(15,23,42,.04), 0 10px 24px rgba(30,94,255,.12);
+        --lift-3: 0 12px 28px rgba(30,94,255,.18), 0 28px 56px rgba(15,23,42,.12);
     }
+
+    /* ── Latar: gradien lembut + noda cahaya ──────────────── */
+    .stApp {
+        background:
+            radial-gradient(900px 520px at 12% -8%,  rgba(30,94,255,.13), transparent 60%),
+            radial-gradient(760px 460px at 92% 4%,   rgba(6,182,212,.12), transparent 62%),
+            linear-gradient(180deg, #f5f8ff 0%, #eef3fb 46%, #f7f9fc 100%);
+        background-attachment: fixed;
+    }
+    .block-container { padding: 1.25rem 2rem 3.5rem 2rem; max-width: 1500px; }
+
+    h1, h2, h3 { color: var(--sigap-ink); letter-spacing: -.015em; }
+    h1 { font-weight: 800 !important; }
+    h2, h3 { font-weight: 700 !important; }
+
+    /* ── Kartu metrik: kaca + terangkat + miring saat disentuh ── */
+    [data-testid="metric-container"],
+    [data-testid="stMetric"] {
+        position: relative;
+        padding: 1rem 1.15rem;
+        border-radius: 16px;
+        background: var(--sigap-surface);
+        backdrop-filter: blur(14px) saturate(150%);
+        -webkit-backdrop-filter: blur(14px) saturate(150%);
+        border: 1px solid var(--sigap-line);
+        box-shadow: var(--lift-2);
+        transform-style: preserve-3d;
+        transition: transform .28s cubic-bezier(.22,1,.36,1), box-shadow .28s ease;
+    }
+    /* garis cahaya tipis di tepi atas — memberi kesan permukaan miring kena cahaya */
+    [data-testid="metric-container"]::before,
+    [data-testid="stMetric"]::before {
+        content: "";
+        position: absolute; inset: 0;
+        border-radius: inherit;
+        padding: 1px;
+        background: linear-gradient(160deg, rgba(255,255,255,.95), rgba(255,255,255,0) 42%);
+        -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+        -webkit-mask-composite: xor; mask-composite: exclude;
+        pointer-events: none;
+    }
+    [data-testid="metric-container"]:hover,
+    [data-testid="stMetric"]:hover {
+        transform: perspective(900px) translateY(-4px) rotateX(4deg);
+        box-shadow: var(--lift-3);
+    }
+    [data-testid="stMetricValue"] {
+        font-weight: 800;
+        background: linear-gradient(120deg, var(--sigap-blue-deep), var(--sigap-cyan));
+        -webkit-background-clip: text; background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    /* ── Badge model: pil dengan sedikit tinggi ───────────── */
     .model-badge {
         display: inline-block;
-        padding: 0.2rem 0.7rem;
-        border-radius: 1rem;
-        font-size: 0.8rem;
+        padding: .26rem .8rem;
+        border-radius: 999px;
+        font-size: .78rem;
         font-weight: 700;
-        margin-right: 0.4rem;
+        margin-right: .4rem;
+        box-shadow: var(--lift-1);
+        border: 1px solid rgba(255,255,255,.6);
     }
-    .badge-prophet  { background:#dbeafe; color:#1d4ed8; }
-    .badge-xgb      { background:#dcfce7; color:#166534; }
-    .badge-sarima   { background:#fef3c7; color:#92400e; }
-    .badge-ensemble { background:#f3e8ff; color:#6b21a8; }
-    .badge-winner   { background:#fecaca; color:#991b1b; }
+    .badge-prophet  { background:linear-gradient(145deg,#e6efff,#cfe0ff); color:#1746b8; }
+    .badge-xgb      { background:linear-gradient(145deg,#e4fbec,#c9f3da); color:#12693c; }
+    .badge-sarima   { background:linear-gradient(145deg,#fff5da,#ffe9b4); color:#8a5a06; }
+    .badge-ensemble { background:linear-gradient(145deg,#f4e9ff,#e7d6ff); color:#6320a8; }
+    .badge-winner   { background:linear-gradient(145deg,#ffe3e3,#ffc9c9); color:#a11a1a; }
+
+    /* ── Kotak akurasi & info ─────────────────────────────── */
     .accuracy-box {
-        padding: 1rem;
-        border-radius: 0.5rem;
-        background: rgba(59,130,246,0.07);
-        border: 1px solid rgba(59,130,246,0.25);
+        padding: 1.05rem 1.2rem;
+        border-radius: 14px;
+        background: linear-gradient(150deg, rgba(30,94,255,.10), rgba(6,182,212,.07));
+        border: 1px solid rgba(30,94,255,.22);
+        box-shadow: var(--lift-1);
         margin-bottom: 1rem;
     }
     .highlight-estimasi {
-        color: #1d4ed8 !important;
-        font-size: 1.05rem;
-        font-weight: 800;
-        line-height: 1.6;
+        color: var(--sigap-blue-deep) !important;
+        font-size: 1.06rem; font-weight: 800; line-height: 1.6;
+    }
+
+    /* ── Panel bawaan Streamlit: samakan bahasanya ────────── */
+    div[data-testid="stExpander"],
+    div[data-testid="stAlert"],
+    div[data-testid="stDataFrame"],
+    div[data-testid="stTable"] {
+        border-radius: 14px !important;
+        border: 1px solid var(--sigap-line) !important;
+        box-shadow: var(--lift-1);
+        overflow: hidden;
+    }
+    div[data-testid="stExpander"] { background: var(--sigap-surface); }
+
+    /* ── Tab: seperti kartu kecil yang naik saat aktif ────── */
+    .stTabs [data-baseweb="tab-list"] { gap: .4rem; border-bottom: none; }
+    .stTabs [data-baseweb="tab"] {
+        border-radius: 12px 12px 0 0;
+        padding: .55rem 1.05rem;
+        background: rgba(255,255,255,.55);
+        border: 1px solid var(--sigap-line);
+        border-bottom: none;
+        transition: transform .2s ease, box-shadow .2s ease, background .2s ease;
+    }
+    .stTabs [data-baseweb="tab"]:hover { transform: translateY(-2px); }
+    .stTabs [aria-selected="true"] {
+        background: #fff;
+        box-shadow: var(--lift-2);
+        transform: translateY(-3px);
+    }
+
+    /* ── Tombol: timbul, menekan saat diklik ─────────────── */
+    .stButton > button, .stDownloadButton > button, .stLinkButton > a {
+        border-radius: 12px;
+        font-weight: 650;
+        border: 1px solid rgba(30,94,255,.28);
+        box-shadow: var(--lift-1);
+        transition: transform .16s ease, box-shadow .16s ease;
+    }
+    .stButton > button:hover, .stDownloadButton > button:hover, .stLinkButton > a:hover {
+        transform: translateY(-2px);
+        box-shadow: var(--lift-2);
+    }
+    .stButton > button:active, .stDownloadButton > button:active {
+        transform: translateY(0);
+        box-shadow: inset 0 2px 5px rgba(15,23,42,.16);
+    }
+    .stButton > button[kind="primary"] {
+        background: linear-gradient(135deg, var(--sigap-blue), var(--sigap-cyan));
+        border: none; color: #fff;
+    }
+
+    /* ── Sidebar ─────────────────────────────────────────── */
+    section[data-testid="stSidebar"] {
+        background: linear-gradient(185deg, #ffffff 0%, #f3f7ff 100%);
+        border-right: 1px solid var(--sigap-line);
+        box-shadow: 6px 0 26px rgba(15,23,42,.06);
+    }
+
+    /* ── Grafik Plotly ikut mengambang ───────────────────── */
+    div[data-testid="stPlotlyChart"] {
+        border-radius: 16px;
+        background: rgba(255,255,255,.66);
+        border: 1px solid var(--sigap-line);
+        box-shadow: var(--lift-2);
+        padding: .35rem;
+    }
+
+    hr { border-color: var(--sigap-line); }
+
+    /* Hormati pengguna yang mematikan animasi di sistemnya */
+    @media (prefers-reduced-motion: reduce) {
+        * { transition: none !important; animation: none !important; }
+    }
+    /* Di layar sempit, efek angkat dimatikan agar tidak mengganggu */
+    @media (max-width: 640px) {
+        [data-testid="metric-container"]:hover,
+        [data-testid="stMetric"]:hover { transform: none; }
+        .block-container { padding: 1rem 1rem 2.5rem 1rem; }
     }
     </style>
     """, unsafe_allow_html=True)
@@ -89,8 +232,185 @@ inject_custom_css()
 # ============================================================
 # HEADER
 # ============================================================
-st.title("📊 SIGAP-Bojonegoro")
-st.caption("Sistem Informasi Geospasial & Analitik Prediktif — Dashboard Analisis Data Kunjungan Puskesmas")
+# ============================================================
+# HEADER — banner 3D (globe geospasial berputar)
+# ============================================================
+HERO_HEIGHT = 250
+
+def render_hero_3d():
+    """Banner header dengan globe 3D berputar (three.js) sebagai latar.
+
+    Dirender di dalam iframe komponen Streamlit. Kalau three.js gagal dimuat
+    (mis. jaringan puskesmas memblokir CDN), banner tetap tampil rapi dengan
+    gradien saja — teksnya tidak pernah hilang.
+    """
+    components.html(HERO_HTML, height=HERO_HEIGHT, scrolling=False)
+
+HERO_HTML = """
+<div id="hero">
+  <canvas id="globe"></canvas>
+  <div id="copy">
+    <div id="eyebrow">PEMERINTAH KABUPATEN BOJONEGORO &middot; UPT PUSKESMAS PURWOSARI</div>
+    <h1>SIGAP&#8209;Bojonegoro</h1>
+    <p>Sistem Informasi Geospasial &amp; Analitik Prediktif &mdash; dashboard analisis data kunjungan puskesmas</p>
+  </div>
+</div>
+
+<style>
+  html, body { margin:0; padding:0; background:transparent; overflow:hidden; }
+  #hero {
+    position: relative;
+    height: 250px;
+    border-radius: 20px;
+    overflow: hidden;
+    background:
+      radial-gradient(680px 300px at 82% 48%, rgba(6,182,212,.30), transparent 66%),
+      linear-gradient(126deg, #0b2f8f 0%, #1e5eff 46%, #2aa9d9 100%);
+    box-shadow: 0 14px 32px rgba(16,57,168,.28), 0 34px 64px rgba(15,23,42,.16);
+    font-family: "Source Sans Pro", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  /* kilau tipis di tepi atas, biar permukaannya terasa melengkung */
+  #hero::after {
+    content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none;
+    background: linear-gradient(168deg, rgba(255,255,255,.30), rgba(255,255,255,0) 38%);
+  }
+  #globe { position:absolute; inset:0; width:100%; height:100%; display:block; }
+  #copy {
+    position: relative; z-index: 2;
+    padding: 2.1rem 2.3rem;
+    max-width: 58%;
+    color: #fff;
+  }
+  #eyebrow {
+    font-size: .68rem; font-weight: 700; letter-spacing: .14em;
+    color: rgba(255,255,255,.80); margin-bottom: .55rem;
+  }
+  #copy h1 {
+    margin: 0 0 .45rem 0;
+    color: #fff;
+    font-size: clamp(1.7rem, 3.6vw, 2.6rem);
+    font-weight: 800; letter-spacing: -.02em; line-height: 1.08;
+    text-shadow: 0 2px 18px rgba(4,22,74,.45);
+  }
+  #copy p {
+    margin: 0; font-size: .95rem; line-height: 1.5;
+    color: rgba(255,255,255,.90); max-width: 30rem;
+    text-shadow: 0 1px 10px rgba(4,22,74,.35);
+  }
+  @media (max-width: 720px) {
+    #copy { max-width: 100%; padding: 1.5rem 1.5rem; }
+    #copy p { font-size: .86rem; }
+  }
+</style>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function () {
+  var cv = document.getElementById('globe');
+  // three.js tidak termuat (CDN diblokir) -> banner tetap tampil, hanya tanpa globe
+  if (typeof THREE === 'undefined' || !cv) { if (cv) cv.style.display = 'none'; return; }
+
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  var scene  = new THREE.Scene();
+  var camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100);
+  camera.position.z = 5.2;
+
+  var renderer = new THREE.WebGLRenderer({ canvas: cv, alpha: true, antialias: true });
+  renderer.setClearColor(0x000000, 0);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+
+  var world = new THREE.Group();
+  // digeser ke kanan supaya tidak menabrak teks
+  world.position.x = 1.55;
+  scene.add(world);
+
+  var R = 1.62;
+
+  // rangka bola
+  var wire = new THREE.Mesh(
+    new THREE.IcosahedronGeometry(R, 2),
+    new THREE.MeshBasicMaterial({ color: 0xbfe4ff, wireframe: true, transparent: true, opacity: 0.44 })
+  );
+  world.add(wire);
+
+  // bola inti semu, memberi kesan padat
+  var core = new THREE.Mesh(
+    new THREE.SphereGeometry(R * 0.985, 32, 32),
+    new THREE.MeshBasicMaterial({ color: 0x0a2a7a, transparent: true, opacity: 0.42 })
+  );
+  world.add(core);
+
+  // titik-titik "desa" tersebar di permukaan (distribusi spiral Fibonacci)
+  var N = 170, pos = new Float32Array(N * 3), gold = Math.PI * (3 - Math.sqrt(5));
+  for (var i = 0; i < N; i++) {
+    var y = 1 - (i / (N - 1)) * 2;
+    var r = Math.sqrt(Math.max(0, 1 - y * y));
+    var th = gold * i;
+    pos[i*3]   = Math.cos(th) * r * R * 1.012;
+    pos[i*3+1] = y * R * 1.012;
+    pos[i*3+2] = Math.sin(th) * r * R * 1.012;
+  }
+  var pg = new THREE.BufferGeometry();
+  pg.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  world.add(new THREE.Points(pg, new THREE.PointsMaterial({
+    color: 0xaef6ff, size: 0.056, transparent: true, opacity: 1.0, sizeAttenuation: true
+  })));
+
+  // dua cincin orbit miring
+  [[0.62, 2.18], [-0.45, 2.52]].forEach(function (o) {
+    var ring = new THREE.Mesh(
+      new THREE.TorusGeometry(o[1], 0.006, 8, 128),
+      new THREE.MeshBasicMaterial({ color: 0x9fe9ff, transparent: true, opacity: 0.42 })
+    );
+    ring.rotation.x = Math.PI / 2 + o[0];
+    ring.rotation.y = o[0] * 0.5;
+    world.add(ring);
+  });
+
+  function resize() {
+    var w = cv.clientWidth, h = cv.clientHeight;
+    if (!w || !h) return;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    // di layar sempit globe dikecilkan & digeser supaya teks tetap terbaca
+    var narrow = w < 720;
+    world.position.x = narrow ? 0.85 : 1.55;
+    world.scale.setScalar(narrow ? 0.72 : 1);
+    camera.updateProjectionMatrix();
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  // parallax halus mengikuti kursor
+  var tx = 0, ty = 0;
+  document.addEventListener('mousemove', function (e) {
+    tx = (e.clientX / window.innerWidth  - 0.5) * 0.34;
+    ty = (e.clientY / window.innerHeight - 0.5) * 0.22;
+  });
+
+  var visible = true;
+  document.addEventListener('visibilitychange', function () { visible = !document.hidden; });
+
+  var t = 0;
+  function frame() {
+    requestAnimationFrame(frame);
+    if (!visible) return;                 // berhenti menggambar saat tab tidak aktif
+    t += reduce ? 0 : 0.0024;             // hormati setelan "kurangi animasi"
+    world.rotation.y = t * 2.6;
+    world.rotation.x = -0.24 + Math.sin(t * 1.7) * 0.05;
+    world.rotation.y += (tx - world.rotation.y % (Math.PI * 2)) * 0;
+    camera.position.x = tx;
+    camera.position.y = -ty;
+    camera.lookAt(world.position.x * 0.45, 0, 0);
+    renderer.render(scene, camera);
+  }
+  frame();
+})();
+</script>
+"""
+
+render_hero_3d()
 col_header1, col_header2 = st.columns([2, 1])
 
 with col_header1:

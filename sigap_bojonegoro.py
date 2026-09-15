@@ -244,7 +244,12 @@ def render_hero_3d():
     (mis. jaringan puskesmas memblokir CDN), banner tetap tampil rapi dengan
     gradien saja — teksnya tidak pernah hilang.
     """
-    components.html(HERO_HTML, height=HERO_HEIGHT, scrolling=False)
+    # st.components.v1.html dijadwalkan dihapus Streamlit; pakai st.iframe bila
+    # tersedia, dan tetap jatuh ke API lama pada versi Streamlit yang lebih tua.
+    if hasattr(st, "iframe"):
+        st.iframe(HERO_HTML, height=HERO_HEIGHT)
+    else:
+        components.html(HERO_HTML, height=HERO_HEIGHT, scrolling=False)
 
 HERO_HTML = """
 <div id="hero">
@@ -534,6 +539,27 @@ def load_data(file):
         except: df_raw = pd.read_excel(file, engine="xlrd")
     return clean_raw_data(df_raw), df_raw
 
+MUSIM_URUT = ["🌧️ Hujan (Des–Feb)", "🌤️ Pancaroba I (Mar–Mei)",
+              "☀️ Kemarau (Jun–Agu)", "🌦️ Pancaroba II (Sep–Nov)"]
+
+def label_musim(bulan):
+    """Golongkan bulan ke empat musim, termasuk dua masa pancaroba.
+
+    Pancaroba II (Sep-Nov) adalah peralihan kemarau ke hujan — masa yang pada data
+    kunjungan Puskesmas Purwosari justru menunjukkan puncak ISPA. Dengan pembagian
+    dua musim saja, puncak itu terbelah di perbatasan dan polanya hilang.
+    """
+    try:
+        b = int(bulan)
+    except (TypeError, ValueError):
+        return None
+    if b in (12, 1, 2):  return MUSIM_URUT[0]
+    if b in (3, 4, 5):   return MUSIM_URUT[1]
+    if b in (6, 7, 8):   return MUSIM_URUT[2]
+    if b in (9, 10, 11): return MUSIM_URUT[3]
+    return None
+
+
 def preprocess_data(df):
     if df is None or df.empty: return df
     df = df.copy()
@@ -566,6 +592,11 @@ def preprocess_data(df):
         df["hari_ke"]    = df["tanggal_kunjungan"].dt.dayofyear
         # Musim hujan Indonesia: Nov-Apr → 1, kemarau: Mei-Okt → 0
         df["musim_hujan"] = df["bulan"].apply(lambda m: 1 if m in [11,12,1,2,3,4] else 0)
+        # Penggolongan empat musim. Pembagian dua-musim saja menyesatkan untuk
+        # penyakit yang memuncak di masa peralihan: pada data nyata Puskesmas
+        # Purwosari, ISPA memuncak Agustus-Oktober (tepat di perbatasan), sehingga
+        # agregat dua-musim justru menyimpulkan sebaliknya.
+        df["musim"] = df["bulan"].apply(label_musim)
     for col in ["poli","jenis_kelamin","pembiayaan","diagnosa","desa"]:
         if col in df.columns:
             df[col] = df[col].astype(str).str.strip().str.title()
@@ -824,6 +855,53 @@ def _safe_run(fn, *args, **kwargs):
         return None, str(e)
 
 
+def _holdout_split(train_df, min_latih=24):
+    """Bagi deret jadi bagian latih dan bagian uji yang disisihkan.
+
+    Bagian uji diambil dari ekor deret (data terbaru) sebanyak 20% panjang deret,
+    dibatasi 4 sampai 26 periode. Mengembalikan (latih, uji, h) atau (None, None, 0)
+    bila deret terlalu pendek untuk disisihkan.
+    """
+    n = len(train_df)
+    h = int(round(n * 0.2))
+    h = max(4, min(26, h))
+    if n - h < min_latih:
+        return None, None, 0
+    return train_df.iloc[:n - h].copy(), train_df.iloc[n - h:].copy(), h
+
+
+def _eval_holdout(fn, train_df, freq):
+    """Nilai sebuah model pada data yang BELUM pernah dilihatnya.
+
+    PENTING: sebelumnya metrik MAE/RMSE/MAPE dihitung in-sample — model dinilai
+    memakai data yang dipakai melatihnya sendiri. Untuk model berkapasitas tinggi
+    seperti XGBoost hasilnya sangat optimistis (terukur MAPE 2,3% in-sample lawan
+    48,8% out-of-sample pada deret yang sama), sehingga lencana "Terbaik" cenderung
+    selalu jatuh ke model yang paling pandai menghafal, bukan yang paling tepat
+    meramal. Fungsi ini melatih model hanya pada bagian awal deret lalu menilainya
+    pada ekor deret yang disisihkan.
+
+    Mengembalikan (metrics, catatan) — catatan berisi keterangan bila deret terlalu
+    pendek sehingga evaluasi terpaksa jatuh kembali ke in-sample.
+    """
+    latih, uji, h = _holdout_split(train_df)
+    if latih is None:
+        return None, "deret terlalu pendek untuk disisihkan"
+    try:
+        out = fn(latih, h, freq)
+    except Exception:
+        return None, "gagal dilatih pada bagian uji"
+    fc = out[0] if isinstance(out, tuple) else out
+    if fc is None or "yhat" not in getattr(fc, "columns", []):
+        return None, "tidak menghasilkan prediksi"
+    batas = latih["ds"].max()
+    masa_depan = fc[fc["ds"] > batas][["ds", "yhat"]]
+    gabung = uji.merge(masa_depan, on="ds", how="inner")
+    if len(gabung) == 0:
+        return None, "tanggal prediksi tidak bertemu data uji"
+    return eval_metrics(gabung["y"].values, gabung["yhat"].values), ""
+
+
 # Cache: menghindari re-training 3 model dari nol setiap kali skrip Streamlit
 # rerun (mis. widget lain disentuh, tombol download diklik) selama data,
 # periods, dan freq-nya sama persis dengan run sebelumnya.
@@ -873,6 +951,26 @@ def ensemble_forecast(train_df: pd.DataFrame, periods: int, freq: str = "W-MON")
     elif s_out is not None and s_out[0] is not None:
         fc_s, met_s = s_out
         results["SARIMA"] = {"fc": fc_s, "metrics": met_s}
+
+    # ── Nilai ulang setiap model secara out-of-sample ────────────────────────
+    # Metrik dari run_* di atas bersifat in-sample. Yang dilaporkan ke pengguna
+    # harus metrik pada data yang disisihkan, agar perbandingan antar model adil.
+    if results:
+        _fns = {"Prophet": run_prophet, "XGBoost": run_xgboost, "SARIMA": run_sarima}
+        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as ex:
+            _fut = {nm: ex.submit(_eval_holdout, _fns[nm], train_df, freq)
+                    for nm in results if nm in _fns}
+            for nm, ft in _fut.items():
+                try:
+                    met_oos, catatan = ft.result()
+                except Exception:
+                    met_oos, catatan = None, "gagal dievaluasi"
+                if met_oos is not None:
+                    results[nm]["metrics"] = met_oos
+                    results[nm]["mode"] = "uji"          # diuji pada data disisihkan
+                else:
+                    results[nm]["mode"] = "insample"     # terpaksa jatuh ke in-sample
+                    results[nm]["catatan"] = catatan
 
     if not results:
         return None, None, None, None, errors
@@ -1018,6 +1116,36 @@ def page_ml_upgraded(df_filtered, filter_info):
 
     st.info(f"📊 Data: **{len(weekly)}** titik · Prediksi: **{periods}** {'minggu' if freq=='W-MON' else 'bulan'} ke depan")
 
+    # ── Peringatan mutu deret sebelum model dijalankan ───────────────────────
+    # 1) Patahan struktural: bila awal deret jauh lebih sepi daripada akhirnya,
+    #    kemungkinan besar itu masa awal pencatatan digital, bukan kenaikan kasus.
+    #    Model akan membacanya sebagai tren naik lalu melanjutkannya.
+    _y = weekly["y"].astype(float).values
+    if len(_y) >= 12:
+        _k = max(3, len(_y) // 4)
+        _awal, _akhir = _y[:_k].mean(), _y[-_k:].mean()
+        if _akhir > 0 and _awal < 0.35 * _akhir:
+            st.warning(
+                f"⚠️ **Awal deret jauh lebih sepi daripada akhirnya** "
+                f"(rata-rata {_awal:.1f} lawan {_akhir:.1f} per periode). Ini lazim terjadi "
+                "pada masa awal pencatatan rekam medis elektronik, dan bukan berarti kasus "
+                "benar-benar meningkat sebesar itu. Model akan membacanya sebagai tren naik. "
+                "Persempit **Rentang Tanggal** di sidebar ke periode yang pencatatannya sudah "
+                "mapan agar prediksinya lebih dapat dipercaya."
+            )
+    # 2) Deret terlalu pendek untuk musiman tahunan.
+    _min_musim = 156 if freq == "W-MON" else 36      # ±3 tahun
+    if len(weekly) < _min_musim:
+        _thn = len(weekly) / (52 if freq == "W-MON" else 12)
+        st.warning(
+            f"⚠️ **Deret hanya mencakup sekitar {_thn:.1f} tahun.** Prophet dan SARIMA "
+            "membutuhkan kira-kira tiga tahun data untuk mengenali pola musiman tahunan "
+            "dengan mantap; di bawah itu komponen musimannya kurang teridentifikasi dan "
+            "hasilnya bisa tidak stabil. "
+            + ("Coba frekuensi **Bulanan** agar deretnya lebih ringkas dan stabil."
+               if freq == "W-MON" else "Perpanjang rentang tanggal bila memungkinkan.")
+        )
+
     # ── Jalankan Ensemble ─────────────────────────────────────
     # Hasil disimpan di st.session_state (bukan langsung ditampilkan di dalam
     # blok `if st.button(...)`) supaya TIDAK hilang saat skrip Streamlit rerun
@@ -1067,8 +1195,24 @@ def page_ml_upgraded(df_filtered, filter_info):
     for name, r in results.items():
         if r["metrics"]:
             row = {"Model": name, **r["metrics"]}
+            row["Dinilai pada"] = ("Data uji disisihkan" if r.get("mode") == "uji"
+                                   else "Data latih sendiri")
             row["Status"] = "🏆 Terbaik" if name == best_name else ""
             eval_rows.append(row)
+
+    _mode = {r.get("mode") for r in results.values() if r.get("metrics")}
+    if _mode == {"uji"}:
+        st.caption(
+            "Angka di bawah dihitung pada 20% data terakhir yang **disisihkan** dan tidak "
+            "dipakai melatih model, sehingga mencerminkan ketepatan meramal ke depan. "
+            "Prediksi yang ditampilkan di grafik tetap memakai seluruh data."
+        )
+    elif "insample" in _mode:
+        st.warning(
+            "⚠️ Sebagian model dinilai memakai data latihnya sendiri karena deret terlalu "
+            "pendek untuk disisihkan. Angka akurasinya cenderung terlalu bagus — "
+            "perpanjang rentang tanggal agar penilaian lebih jujur."
+        )
 
     eval_df = pd.DataFrame(eval_rows)
     st.dataframe(
@@ -1193,7 +1337,8 @@ def page_disease_seasonality(df_filtered, filter_info):
     df = df_filtered.copy()
     df["bulan"]       = df["tanggal_kunjungan"].dt.month
     df["nama_bulan"]  = df["tanggal_kunjungan"].dt.strftime("%b")
-    df["musim"]       = df["bulan"].apply(lambda m: "🌧️ Hujan (Nov–Apr)" if m in [11,12,1,2,3,4] else "☀️ Kemarau (Mei–Okt)")
+    if "musim" not in df.columns:
+        df["musim"] = df["bulan"].apply(label_musim)
 
     st.markdown("---")
     tab1, tab2, tab3 = st.tabs(["Heatmap Bulanan", "Penyakit per Musim", "Tren Penyakit Spesifik"])
@@ -1219,8 +1364,8 @@ def page_disease_seasonality(df_filtered, filter_info):
 
     with tab2:
         st.markdown("#### 🌦️ Top Penyakit per Musim")
-        col_a, col_b = st.columns(2)
-        for musim_label, col_ui in zip(["🌧️ Hujan (Nov–Apr)", "☀️ Kemarau (Mei–Okt)"], [col_a, col_b]):
+        _kolom = st.columns(2) + st.columns(2)     # 4 musim, disusun 2x2
+        for musim_label, col_ui in zip(MUSIM_URUT, _kolom):
             df_musim = df[df["musim"] == musim_label]
             if df_musim.empty:
                 col_ui.info(f"Tidak ada data untuk {musim_label}")
@@ -1237,15 +1382,21 @@ def page_disease_seasonality(df_filtered, filter_info):
             fig.update_layout(coloraxis_showscale=False, height=350, yaxis=dict(categoryorder="total ascending"))
             col_ui.plotly_chart(fig, use_container_width=True)
 
-        st.markdown("#### 📊 Perbandingan Intensitas Penyakit: Hujan vs Kemarau")
+        st.markdown("#### 📊 Perbandingan Intensitas Penyakit antar Musim")
+        st.caption(
+            "Dibaca per musim, bukan sekadar hujan lawan kemarau. Penyakit saluran "
+            "napas kerap memuncak pada masa **pancaroba**, dan puncak itu tidak terlihat "
+            "bila setahun hanya dibelah menjadi dua musim."
+        )
         df_comp = df.groupby(["musim","diagnosa"]).size().unstack(fill_value=0).T
-        if df_comp.shape[1] == 2:
-            df_comp.columns = ["Hujan","Kemarau"]
-            df_comp["Selisih"] = df_comp["Hujan"] - df_comp["Kemarau"]
-            df_comp["Dominan_Musim"] = df_comp["Selisih"].apply(
-                lambda x: "🌧️ Hujan" if x > 0 else "☀️ Kemarau"
-            )
-            df_comp_top = df_comp.sort_values("Selisih", key=abs, ascending=False).head(15)
+        _ada = [m for m in MUSIM_URUT if m in df_comp.columns]
+        if len(_ada) >= 2:
+            df_comp = df_comp[_ada]
+            df_comp["Musim Dominan"] = df_comp[_ada].idxmax(axis=1)
+            # urutkan berdasarkan seberapa timpang sebaran kasusnya antar musim
+            _tot = df_comp[_ada].sum(axis=1).replace(0, 1)
+            df_comp["Ketimpangan"] = (df_comp[_ada].max(axis=1) / _tot * 100).round(1)
+            df_comp_top = df_comp.sort_values("Ketimpangan", ascending=False).head(15)
             st.dataframe(df_comp_top.reset_index().rename(columns={"diagnosa":"Diagnosa"}), use_container_width=True, hide_index=True)
             
         st.markdown("#### 📋 Rincian Lengkap Kasus per Musim")
@@ -1386,10 +1537,29 @@ def page_peta_persebaran(df_filtered, filter_info):
         "Purwosari":(-7.1798,111.6608),"Sedahkidul":(-7.1973,111.6792),
         "Tinumpuk":(-7.2117,111.68),"Tlatah":(-7.2172,111.6975),
     }
-    def get_koord(desa): return koordinat_desa.get(str(desa).strip().title(), (-7.1509,111.8817))
-    
-    df_grouped["latitude"]  = df_grouped["desa"].apply(lambda x: get_koord(x)[0])
-    df_grouped["longitude"] = df_grouped["desa"].apply(lambda x: get_koord(x)[1])
+    # ── FIX: desa di luar 12 desa wilayah kerja TIDAK lagi dilempar ke satu
+    # koordinat cadangan. Sebelumnya setiap nama desa asing menumpuk di titik yang
+    # sama (-7.1509, 111.8817) — bukan desa mana pun — sehingga pada data nyata
+    # 334 nama desa dengan 2.972 kunjungan membentuk "gelembung hantu" yang terbaca
+    # sebagai kantong penyakit. Kini pasien luar wilayah dipisahkan dari peta.
+    def _norm(d): return str(d).strip().title()
+    df_grouped["_dalam"] = df_grouped["desa"].apply(lambda x: _norm(x) in koordinat_desa)
+    df_luar    = df_grouped[~df_grouped["_dalam"]].drop(columns=["_dalam"])
+    df_grouped = df_grouped[df_grouped["_dalam"]].drop(columns=["_dalam"]).copy()
+
+    if len(df_luar):
+        n_kasus = int(df_luar["jumlah_kasus"].sum())
+        st.info(
+            f"🧭 {n_kasus:,} kunjungan berasal dari {df_luar['desa'].nunique()} desa "
+            "di luar wilayah kerja Puskesmas Purwosari, sehingga tidak ditampilkan "
+            "di peta. Rinciannya tetap ada pada tabel di bawah.".replace(",", ".")
+        )
+    if df_grouped.empty:
+        st.warning("Tidak ada kunjungan dari 12 desa wilayah kerja pada filter ini.")
+        return
+
+    df_grouped["latitude"]  = df_grouped["desa"].apply(lambda x: koordinat_desa[_norm(x)][0])
+    df_grouped["longitude"] = df_grouped["desa"].apply(lambda x: koordinat_desa[_norm(x)][1])
     
     # Catatan: px.scatter_mapbox() dihapus total di Plotly 7.0 (diganti px.scatter_map(),
     # berbasis MapLibre — tidak butuh Mapbox token). "mapbox_style" juga berganti nama
@@ -1430,8 +1600,14 @@ def page_peta_persebaran(df_filtered, filter_info):
         st.dataframe(df_desa_detail[kolom_tabel], use_container_width=True, hide_index=True)
             
     else:
-        st.markdown("### 📋 Tabel Akumulasi (Seluruh Desa yang Tampil)")
-        st.dataframe(df_grouped.sort_values("jumlah_kasus", ascending=False).drop(columns=["latitude", "longitude"]), use_container_width=True, hide_index=True)
+        st.markdown("### 📋 Tabel Akumulasi")
+        _tab = df_grouped.drop(columns=["latitude", "longitude"]).copy()
+        _tab["wilayah"] = "Dalam wilayah"
+        if len(df_luar):
+            _l = df_luar.copy(); _l["wilayah"] = "Luar wilayah"
+            _tab = pd.concat([_tab, _l], ignore_index=True)
+        st.dataframe(_tab.sort_values("jumlah_kasus", ascending=False),
+                     use_container_width=True, hide_index=True)
 
 
 def page_pembiayaan(df_filtered, filter_info):

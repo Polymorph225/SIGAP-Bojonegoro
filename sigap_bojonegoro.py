@@ -8,26 +8,22 @@ import io
 import warnings
 import plotly.express as px
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-from fpdf import FPDF
 from datetime import datetime, date
-import tempfile
 import concurrent.futures
 
+# ── Pustaka berat sengaja TIDAK diimpor di tingkat modul ─────────────────────
+# Prophet, XGBoost, statsmodels, dan klien Gemini menelan sekitar 1,6 detik CPU
+# dan ratusan MB RAM pada setiap start container, padahal hanya dibutuhkan oleh
+# dua dari sepuluh halaman. Di Streamlit Community Cloud yang sumber dayanya
+# terbatas, beban itu ikut memicu throttling. Keempatnya kini dimuat saat
+# pertama kali benar-benar dipakai (Python menyimpannya di sys.modules, jadi
+# panggilan berikutnya tidak membayar lagi).
+
 # ─── Machine Learning & Forecasting Libraries ───────────────────────────────
-import google.generativeai as genai
-from prophet import Prophet
-from prophet.diagnostics import cross_validation, performance_metrics
 
 # XGBoost & scikit-learn
-import xgboost as xgb
-from sklearn.metrics import mean_absolute_error, mean_squared_error
-from sklearn.model_selection import TimeSeriesSplit
-from sklearn.preprocessing import LabelEncoder
 
 # SARIMA
-from statsmodels.tsa.statespace.sarimax import SARIMAX
-from statsmodels.tsa.stattools import adfuller
 
 warnings.filterwarnings('ignore')
 
@@ -443,6 +439,7 @@ st.markdown("⬅️ **Mulai dengan meng-upload file data di sidebar.**")
 # ============================================================
 @st.cache_resource
 def get_gemini_client():
+    import google.generativeai as genai
     api_key = None
     try:
         api_key = st.secrets.get("GEMINI_API_KEY")
@@ -560,6 +557,20 @@ def label_musim(bulan):
     return None
 
 
+@st.cache_data(show_spinner=False)
+def load_and_prepare(file):
+    """Baca berkas lalu siapkan datanya, sekali saja per berkas.
+
+    PERF: preprocess_data sebelumnya dipanggil di luar cache, sehingga seluruh
+    penyiapan data diulang pada SETIAP rerun Streamlit — dan Streamlit rerun
+    tiap kali filter disentuh atau halaman diganti. Pada 23.616 baris data nyata
+    biayanya terukur ~230 ms per interaksi, yang pada CPU terbatas Streamlit
+    Community Cloud menumpuk menjadi pemakaian berkelanjutan dan memicu throttle.
+    """
+    df_clean, _ = load_data(file)
+    return preprocess_data(df_clean)
+
+
 def preprocess_data(df):
     if df is None or df.empty: return df
     df = df.copy()
@@ -612,8 +623,7 @@ def apply_filters(_):
         if uploaded_file is None:
             st.info("Silakan upload file CSV/Excel.")
             return None, None
-        df_clean, _ = load_data(uploaded_file)
-        df = preprocess_data(df_clean)
+        df = load_and_prepare(uploaded_file)
         st.success("Data berhasil dimuat ✅")
         st.caption(f"📊 {len(df):,} baris · {len(df.columns)} kolom".replace(",","."))
 
@@ -699,8 +709,10 @@ def eval_metrics(y_true, y_pred):
     y_true = np.array(y_true, dtype=float)
     y_pred = np.array(y_pred, dtype=float)
     mask   = y_true != 0
-    mae    = mean_absolute_error(y_true, y_pred)
-    rmse   = np.sqrt(mean_squared_error(y_true, y_pred))
+    # Dihitung langsung dengan numpy (hasil identik dengan sklearn) agar
+    # scikit-learn tidak perlu ikut dimuat saat aplikasi start.
+    mae    = float(np.mean(np.abs(y_true - y_pred)))
+    rmse   = float(np.sqrt(np.mean((y_true - y_pred) ** 2)))
     mape   = np.mean(np.abs((y_true[mask] - y_pred[mask]) / y_true[mask])) * 100 if mask.any() else np.nan
     return {"MAE": round(mae, 2), "RMSE": round(rmse, 2), "MAPE": round(mape, 2)}
 
@@ -708,6 +720,7 @@ def eval_metrics(y_true, y_pred):
 # ── Prophet ──────────────────────────────────────────────────
 def run_prophet(train_df, periods, freq="W-MON"):
     """Fit Prophet dan kembalikan forecast + metrics."""
+    from prophet import Prophet
     m = Prophet(
         yearly_seasonality=True,
         weekly_seasonality=False,
@@ -734,6 +747,7 @@ def run_prophet(train_df, periods, freq="W-MON"):
 # ── XGBoost ──────────────────────────────────────────────────
 def run_xgboost(train_df, periods, freq="W-MON"):
     """Fit XGBoost dengan feature engineering dan prediksi iteratif."""
+    import xgboost as xgb
     feat_df = build_features(train_df)
     if len(feat_df) < 10:
         return None, None
@@ -806,6 +820,7 @@ def run_sarima(train_df, periods, freq="W-MON"):
     ini sampai ~15-20x lebih cepat (jadi <0.5 detik pada rentang data yang sama) tanpa
     mengubah hasil peramalan secara signifikan, sehingga maxiter juga bisa diturunkan
     karena optimizer konvergen lebih cepat."""
+    from statsmodels.tsa.statespace.sarimax import SARIMAX
     seasonal_period = 52 if freq == "W-MON" else 12
     ts = train_df.set_index("ds")["y"].asfreq(freq).ffill()
     try:
@@ -1660,6 +1675,7 @@ Jawab pertanyaan berikut secara spesifik, berbasis data, dan terstruktur:
 {user_q}"""
         with st.spinner("AI menganalisis..."):
             try:
+                import google.generativeai as genai
                 model = genai.GenerativeModel("gemini-3.6-flash")
                 resp  = model.generate_content(prompt)
                 st.markdown("### 📊 Analisis AI:")

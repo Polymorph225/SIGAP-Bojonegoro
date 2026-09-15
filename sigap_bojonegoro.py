@@ -787,7 +787,13 @@ def run_sarima(train_df, periods, freq="W-MON"):
 
         # In-sample
         y_pred_train = fit.fittedvalues.clip(lower=0)
-        metrics = eval_metrics(ts.values, y_pred_train.values)
+        # FIX: simple_differencing=True membuat statsmodels membuang d + D*s observasi
+        # pertama (53 titik pada mingguan musiman-52, 13 pada bulanan musiman-12),
+        # sehingga fittedvalues lebih pendek daripada ts. Sebelumnya eval_metrics
+        # dipanggil dengan dua larik berbeda panjang -> exception -> SARIMA gugur
+        # diam-diam dan tidak pernah masuk ensemble. Samakan dulu panjangnya.
+        ts_eval = ts.iloc[len(ts) - len(y_pred_train):]
+        metrics = eval_metrics(ts_eval.values, y_pred_train.values)
 
         # Future
         fc_obj    = fit.get_forecast(steps=periods)
@@ -795,7 +801,7 @@ def run_sarima(train_df, periods, freq="W-MON"):
         fc_ci     = fc_obj.conf_int(alpha=0.2)
 
         # Build output dataframe
-        train_preds = pd.DataFrame({"ds": ts.index, "yhat": y_pred_train.values})
+        train_preds = pd.DataFrame({"ds": ts_eval.index, "yhat": y_pred_train.values})
         future_df   = pd.DataFrame({
             "ds":         fc_mean.index,
             "yhat":       fc_mean.values,

@@ -1650,38 +1650,116 @@ def page_quality(df):
 
 
 def page_ai_assistant(df_filtered, filter_info, is_genai):
-    st.subheader("🤖 Asisten AI")
+    st.subheader("\U0001F916 Asisten AI")
+
+    # Riwayat percakapan disimpan di st.session_state, bukan ditampilkan langsung
+    # di dalam blok `if st.button(...)`. Setiap interaksi (ganti menu, ubah
+    # filter, klik tombol unduh) membuat Streamlit menjalankan ulang seluruh
+    # skrip; tanpa penyimpanan ini status tombol "Kirim" kembali False dan
+    # jawaban AI ikut hilang. Perlakuannya sama seperti hasil Ensemble
+    # Forecasting di halaman Prediksi.
+    riwayat = st.session_state.setdefault("ai_chat", [])
+
+    # ── Riwayat ditampilkan lebih dulu, apa pun kondisi data & API ───────────
+    if riwayat:
+        k1, k2 = st.columns([3, 1])
+        with k1:
+            st.caption(f"\U0001F4AC {len(riwayat)} percakapan tersimpan selama sesi ini.")
+        with k2:
+            transkrip = "# Riwayat Asisten AI — SIGAP-Bojonegoro\n\n" + "\n\n".join(
+                f"## {i}. {p['q']}\n\n*{p['waktu']} · {p['konteks']}*\n\n{p['a']}"
+                for i, p in enumerate(riwayat, 1)
+            )
+            st.download_button(
+                "⬇️ Unduh Riwayat",
+                transkrip,
+                file_name=f"riwayat-asisten-ai-{datetime.now():%Y%m%d-%H%M}.md",
+                mime="text/markdown",
+                use_container_width=True,
+            )
+
+        for pesan in riwayat:
+            with st.chat_message("user"):
+                st.markdown(pesan["q"])
+            with st.chat_message("assistant"):
+                st.markdown(pesan["a"])
+                st.caption(f"\U0001F550 {pesan['waktu']} · \U0001F4CA {pesan['konteks']}")
+
+        if st.button("\U0001F5D1️ Hapus Riwayat"):
+            st.session_state["ai_chat"] = []
+            st.rerun()
+        st.divider()
+
     if df_filtered is None or df_filtered.empty:
-        st.warning("Upload dan filter data terlebih dahulu.")
+        st.warning("Upload dan filter data terlebih dahulu untuk mengajukan pertanyaan baru.")
         return
     if not is_genai:
         st.error("❌ API Key Gemini belum diset.")
         return
-    total = len(df_filtered)
-    top_dx = ", ".join([f"{k}({v})" for k,v in df_filtered["diagnosa"].value_counts().head(5).items()]) \
+
+    total  = len(df_filtered)
+    top_dx = ", ".join([f"{k}({v})" for k, v in df_filtered["diagnosa"].value_counts().head(5).items()]) \
              if "diagnosa" in df_filtered.columns else "-"
-    top_pl = ", ".join([f"{k}({v})" for k,v in df_filtered["poli"].value_counts().head(3).items()]) \
+    top_pl = ", ".join([f"{k}({v})" for k, v in df_filtered["poli"].value_counts().head(3).items()]) \
              if "poli" in df_filtered.columns else "-"
     ctx = f"""[DATA REAL-TIME]
 - Total kunjungan: {total}
 - 5 penyakit terbanyak: {top_dx}
 - 3 poli terpadat: {top_pl}"""
-    user_q = st.text_area("Tanyakan strategi/analisis:", placeholder="Contoh: Program promkes apa yang paling mendesak?")
-    if st.button("Kirim"):
-        if not user_q.strip(): st.warning("Pertanyaan kosong."); return
-        prompt = f"""Anda adalah Analis Kesehatan Masyarakat di UPT Puskesmas Purwosari (Bojonegoro).
-{ctx}
+
+    # Label filter ikut disimpan bersama jawaban, supaya jawaban lama tidak
+    # disalahartikan sebagai hasil dari filter yang sedang aktif sekarang.
+    chips = [f"{k.replace('_', ' ').title()}: {', '.join(map(str, v))}"
+             for k, v in (filter_info or {}).items() if v]
+    konteks = f"{total:,} kunjungan".replace(",", ".")
+    if chips:
+        konteks += " · " + " | ".join(chips)
+
+    with st.form("form_asisten_ai", clear_on_submit=True):
+        user_q = st.text_area(
+            "Tanyakan strategi/analisis:",
+            placeholder="Contoh: Program promkes apa yang paling mendesak?",
+        )
+        kirim = st.form_submit_button("Kirim", type="primary")
+
+    if not kirim:
+        return
+    if not user_q.strip():
+        st.warning("Pertanyaan kosong.")
+        return
+
+    # Tiga tanya-jawab terakhir disertakan agar pertanyaan lanjutan
+    # ("jelaskan lebih rinci", "bagaimana dengan poli KIA?") tetap nyambung.
+    sebelumnya = ""
+    if riwayat:
+        sebelumnya = "\n\n[PERCAKAPAN SEBELUMNYA]\n" + "\n\n".join(
+            f"T: {p['q']}\nJ: {p['a'][:600]}" for p in riwayat[-3:]
+        )
+
+    prompt = f"""Anda adalah Analis Kesehatan Masyarakat di UPT Puskesmas Purwosari (Bojonegoro).
+{ctx}{sebelumnya}
 Jawab pertanyaan berikut secara spesifik, berbasis data, dan terstruktur:
 {user_q}"""
-        with st.spinner("AI menganalisis..."):
-            try:
-                import google.generativeai as genai
-                model = genai.GenerativeModel("gemini-3.6-flash")
-                resp  = model.generate_content(prompt)
-                st.markdown("### 📊 Analisis AI:")
-                st.markdown(resp.text)
-            except Exception as e:
-                st.error(f"Gagal: {e}")
+
+    with st.spinner("AI menganalisis..."):
+        try:
+            import google.generativeai as genai
+            model   = genai.GenerativeModel("gemini-3.6-flash")
+            resp    = model.generate_content(prompt)
+            jawaban = resp.text
+        except Exception as e:
+            st.error(f"Gagal: {e}")
+            return
+
+    riwayat.append({
+        "q":       user_q.strip(),
+        "a":       jawaban,
+        "waktu":   datetime.now().strftime("%d %b %Y %H:%M"),
+        "konteks": konteks,
+    })
+    del riwayat[:-50]                      # batasi jejak memori sesi
+    st.session_state["ai_chat"] = riwayat
+    st.rerun()
 
 
 # ══════════════════════════════════════════════════════════════

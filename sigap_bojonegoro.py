@@ -11,14 +11,6 @@ import plotly.graph_objects as go
 from datetime import datetime, date
 import concurrent.futures
 
-# ── Pustaka berat sengaja TIDAK diimpor di tingkat modul ─────────────────────
-# Prophet, XGBoost, statsmodels, dan klien Gemini menelan sekitar 1,6 detik CPU
-# dan ratusan MB RAM pada setiap start container, padahal hanya dibutuhkan oleh
-# dua dari sepuluh halaman. Di Streamlit Community Cloud yang sumber dayanya
-# terbatas, beban itu ikut memicu throttling. Keempatnya kini dimuat saat
-# pertama kali benar-benar dipakai (Python menyimpannya di sys.modules, jadi
-# panggilan berikutnya tidak membayar lagi).
-
 # ─── Machine Learning & Forecasting Libraries ───────────────────────────────
 
 # XGBoost & scikit-learn
@@ -426,7 +418,7 @@ with col_header2:
     st.info("💡 **Apabila Data Tidak Dapat Diunggah, Bersihkan Dulu Disini!**")
     st.link_button(
         "✨ Buka Data Cleaning App", 
-        "https://data-cleaning-app-for-puskesmasapp.streamlit.app/",
+        "https://sigap-datacleaning.streamlit.app/",
         use_container_width=True,
         help="Klik untuk membersihkan format data sebelum diupload ke dashboard ini."
     )
@@ -1044,7 +1036,7 @@ def ensemble_forecast(train_df: pd.DataFrame, periods: int, freq: str = "W-MON")
 
 
 # ══════════════════════════════════════════════════════════════
-# HALAMAN UTAMA: ENSEMBLE FORECASTING (page_ml_upgraded)
+# HALAMAN UTAMA: ENSEMBLE FORECASTING
 # ══════════════════════════════════════════════════════════════
 
 def page_ml_upgraded(df_filtered, filter_info):

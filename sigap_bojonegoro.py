@@ -630,6 +630,7 @@ def apply_filters(_):
         st.markdown("### 🔍 Filter Data")
         date_range = poli_pilihan = jk_pilihan = bayar_pilihan = None
         kelompok_umur_pilihan = desa_pilihan = kecuali_penyakit = None
+        hanya_penyakit = None
 
         with st.expander("Waktu & Poli", expanded=True):
             if "tanggal_kunjungan" in df.columns:
@@ -649,11 +650,28 @@ def apply_filters(_):
             if "pembiayaan" in df.columns:
                 bayar_pilihan = st.multiselect("Pembiayaan", sorted(df["pembiayaan"].dropna().unique()))
             if "diagnosa" in df.columns:
+                daftar_penyakit = sorted(df["diagnosa"].dropna().unique())
+                hanya_penyakit = st.multiselect(
+                    "✅ Hanya Penyakit Tertentu",
+                    daftar_penyakit,
+                    help="Bila diisi, hanya penyakit inilah yang dianalisis. "
+                         "Biarkan kosong untuk memakai seluruh penyakit.",
+                )
                 kecuali_penyakit = st.multiselect(
                     "❌ Kecualikan Penyakit",
-                    sorted(df["diagnosa"].dropna().unique()),
-                    help="Penyakit ini tidak diikutkan dalam analisis."
+                    daftar_penyakit,
+                    help="Penyakit ini tidak diikutkan dalam analisis.",
                 )
+                # Satu penyakit bisa saja tercentang di kedua kotak. Pengecualian
+                # sengaja dimenangkan — lebih aman membuang daripada diam-diam
+                # menyertakan sesuatu yang sudah ditandai untuk dibuang.
+                tumpang = sorted(set(hanya_penyakit) & set(kecuali_penyakit))
+                if tumpang:
+                    contoh = ", ".join(tumpang[:3]) + ("…" if len(tumpang) > 3 else "")
+                    st.warning(
+                        f"⚠️ {contoh} dipilih di kedua kotak. "
+                        "Penyakit itu tetap dikeluarkan dari analisis."
+                    )
 
         df_f = df.copy()
         if date_range and len(date_range)==2:
@@ -664,12 +682,19 @@ def apply_filters(_):
         if bayar_pilihan:          df_f = df_f[df_f["pembiayaan"].isin(bayar_pilihan)]
         if kelompok_umur_pilihan:  df_f = df_f[df_f["kelompok_umur"].isin(kelompok_umur_pilihan)]
         if desa_pilihan:           df_f = df_f[df_f["desa"].isin(desa_pilihan)]
+        if hanya_penyakit:         df_f = df_f[df_f["diagnosa"].isin(hanya_penyakit)]
         if kecuali_penyakit:       df_f = df_f[~df_f["diagnosa"].isin(kecuali_penyakit)]
+
+        if len(df_f) == 0:
+            st.warning("⚠️ Tidak ada baris yang lolos filter. Longgarkan salah satu pilihan di atas.")
+        else:
+            st.caption(f"✅ {len(df_f):,} dari {len(df):,} baris lolos filter.".replace(",", "."))
 
         return df_f, {
             "poli": poli_pilihan, "jenis_kelamin": jk_pilihan,
             "pembiayaan": bayar_pilihan, "kelompok_umur": kelompok_umur_pilihan,
-            "desa": desa_pilihan, "penyakit_dikecualikan": kecuali_penyakit,
+            "desa": desa_pilihan, "hanya_penyakit": hanya_penyakit,
+            "penyakit_dikecualikan": kecuali_penyakit,
         }
 
 def show_active_filters(fi):

@@ -37,8 +37,8 @@ st.set_page_config(
 # tidak lagi bergantung pada tema bawaan Streamlit. Sebelumnya, browser yang
 # memakai mode gelap membuat Streamlit menulis teks berwarna putih, padahal
 # latar aplikasi dipaksa terang, sehingga tulisan "hilang".
-TEMA_TERANG = "☀️ Terang"
-TEMA_GELAP  = "🌙 Gelap"
+TEMA_TERANG = "Terang"
+TEMA_GELAP  = "Gelap"
 
 # Pilihan diingat lewat URL (?tema=gelap), jadi tetap terpakai saat halaman
 # dimuat ulang atau tautannya dibagikan.
@@ -49,7 +49,7 @@ if "tema_tampilan" not in st.session_state:
 
 with st.sidebar:
     st.radio(
-        "🎨 Tampilan",
+        "Tampilan",
         [TEMA_TERANG, TEMA_GELAP],
         key="tema_tampilan",
         horizontal=True,
@@ -87,6 +87,7 @@ TOKEN_TERANG = """
     --sigap-tab:         rgba(255,255,255,.55);
     --sigap-input:       #ffffff;
     --sigap-hover:       #eef3ff;
+    --sigap-nav-active:  rgba(30,94,255,.10);
     --sigap-code-bg:     rgba(15,23,42,.06);
     --sigap-code-text:   #0b6b3a;
     --sigap-table-head:  rgba(30,94,255,.06);
@@ -134,6 +135,7 @@ TOKEN_GELAP = """
     --sigap-tab:         rgba(23,33,56,.55);
     --sigap-input:       #111a2e;
     --sigap-hover:       #22304f;
+    --sigap-nav-active:  rgba(59,123,255,.20);
     --sigap-code-bg:     rgba(148,163,184,.14);
     --sigap-code-text:   #86efac;
     --sigap-table-head:  rgba(59,123,255,.12);
@@ -474,6 +476,45 @@ section[data-testid="stSidebar"] {
 }
 section[data-testid="stSidebar"] > div { background: transparent; }
 
+/* Judul bagian di sidebar: label kecil, rapi, tidak berteriak */
+section[data-testid="stSidebar"] :is(h2, h3) {
+    font-size: .74rem !important;
+    font-weight: 700 !important;
+    letter-spacing: .09em !important;
+    text-transform: uppercase;
+    color: var(--sigap-muted) !important;
+    padding: .9rem 0 .35rem 0 !important;
+}
+
+/* ── Menu navigasi: daftar bersih tanpa bulatan radio ── */
+.st-key-navigasi [data-testid="stRadioGroup"] {
+    display: flex; flex-direction: column; gap: .15rem; width: 100%;
+}
+.st-key-navigasi > [data-testid="stElementContainer"],
+.st-key-navigasi [data-testid="stRadio"],
+.st-key-navigasi [data-testid="stRadioGroup"],
+.st-key-navigasi [data-testid="stRadioGroup"] > div { width: 100% !important; align-items: stretch; }
+.st-key-navigasi [data-testid="stRadioOption"] {
+    flex: 1 1 auto;
+    width: 100%;
+    margin: 0 !important;
+    padding: .5rem .8rem;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background .15s ease;
+}
+.st-key-navigasi [data-testid="stRadioOption"] > div > div:not([data-testid]) { display: none !important; }
+.st-key-navigasi [data-testid="stRadioOption"] p { font-size: .95rem; color: var(--sigap-text); }
+.st-key-navigasi [data-testid="stRadioOption"]:hover { background: var(--sigap-hover); }
+.st-key-navigasi [data-testid="stRadioOption"]:has(input:checked) {
+    background: var(--sigap-nav-active);
+    box-shadow: inset 3px 0 0 var(--sigap-blue);
+}
+.st-key-navigasi [data-testid="stRadioOption"]:has(input:checked) p {
+    color: var(--sigap-accent-text) !important;
+    font-weight: 650;
+}
+
 /* ── Grafik Plotly ikut mengambang ───────────────────── */
 div[data-testid="stPlotlyChart"] {
     border-radius: 16px;
@@ -771,16 +812,16 @@ with col_header1:
     """)
 
 with col_header2:
-    st.info("💡 **Apabila Data Tidak Dapat Diunggah, Bersihkan Dulu Disini!**")
+    st.info("**Apabila Data Tidak Dapat Diunggah, Bersihkan Dulu Disini!**")
     st.link_button(
-        "✨ Buka Data Cleaning App", 
+        "Buka Data Cleaning App", 
         "https://sigap-datacleaning.streamlit.app/",
         use_container_width=True,
         help="Klik untuk membersihkan format data sebelum diupload ke dashboard ini."
     )
 
 st.markdown("---")
-st.markdown("⬅️ **Mulai dengan meng-upload file data di sidebar.**")
+st.markdown("**Mulai dengan meng-upload file data di sidebar.**")
 
 # ============================================================
 # GEMINI CLIENT
@@ -796,7 +837,7 @@ def get_gemini_client():
     if not api_key:
         api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
     if not api_key:
-        st.warning("⚠️ API key Gemini belum diset. Fitur AI Agent tidak aktif.")
+        st.warning("API key Gemini belum diset. Fitur AI Agent tidak aktif.")
         return False
     try:
         genai.configure(api_key=api_key)
@@ -884,8 +925,8 @@ def load_data(file):
         except: df_raw = pd.read_excel(file, engine="xlrd")
     return clean_raw_data(df_raw), df_raw
 
-MUSIM_URUT = ["🌧️ Hujan (Des–Feb)", "🌤️ Pancaroba I (Mar–Mei)",
-              "☀️ Kemarau (Jun–Agu)", "🌦️ Pancaroba II (Sep–Nov)"]
+MUSIM_URUT = ["Hujan (Des–Feb)", "Pancaroba I (Mar–Mei)",
+              "Kemarau (Jun–Agu)", "Pancaroba II (Sep–Nov)"]
 
 def label_musim(bulan):
     """Golongkan bulan ke empat musim, termasuk dua masa pancaroba.
@@ -966,16 +1007,16 @@ def preprocess_data(df):
 # ============================================================
 def apply_filters(_):
     with st.sidebar:
-        st.markdown("## 🏥 Data Kunjungan")
+        st.markdown("## Data Kunjungan")
         uploaded_file = st.file_uploader("Upload CSV / Excel", type=["csv","xlsx","xls"])
         if uploaded_file is None:
             st.info("Silakan upload file CSV/Excel.")
             return None, None
         df = load_and_prepare(uploaded_file)
-        st.success("Data berhasil dimuat ✅")
-        st.caption(f"📊 {len(df):,} baris · {len(df.columns)} kolom".replace(",","."))
+        st.success("Data berhasil dimuat")
+        st.caption(f"{len(df):,} baris · {len(df.columns)} kolom".replace(",","."))
 
-        st.markdown("### 🔍 Filter Data")
+        st.markdown("### Filter Data")
         date_range = poli_pilihan = jk_pilihan = bayar_pilihan = None
         kelompok_umur_pilihan = desa_pilihan = kecuali_penyakit = None
         hanya_penyakit = None
@@ -1000,13 +1041,13 @@ def apply_filters(_):
             if "diagnosa" in df.columns:
                 daftar_penyakit = sorted(df["diagnosa"].dropna().unique())
                 hanya_penyakit = st.multiselect(
-                    "✅ Hanya Penyakit Tertentu",
+                    "Hanya Penyakit Tertentu",
                     daftar_penyakit,
                     help="Bila diisi, hanya penyakit inilah yang dianalisis. "
                          "Biarkan kosong untuk memakai seluruh penyakit.",
                 )
                 kecuali_penyakit = st.multiselect(
-                    "❌ Kecualikan Penyakit",
+                    "Kecualikan Penyakit",
                     daftar_penyakit,
                     help="Penyakit ini tidak diikutkan dalam analisis.",
                 )
@@ -1017,7 +1058,7 @@ def apply_filters(_):
                 if tumpang:
                     contoh = ", ".join(tumpang[:3]) + ("…" if len(tumpang) > 3 else "")
                     st.warning(
-                        f"⚠️ {contoh} dipilih di kedua kotak. "
+                        f"{contoh} dipilih di kedua kotak. "
                         "Penyakit itu tetap dikeluarkan dari analisis."
                     )
 
@@ -1034,9 +1075,9 @@ def apply_filters(_):
         if kecuali_penyakit:       df_f = df_f[~df_f["diagnosa"].isin(kecuali_penyakit)]
 
         if len(df_f) == 0:
-            st.warning("⚠️ Tidak ada baris yang lolos filter. Longgarkan salah satu pilihan di atas.")
+            st.warning("Tidak ada baris yang lolos filter. Longgarkan salah satu pilihan di atas.")
         else:
-            st.caption(f"✅ {len(df_f):,} dari {len(df):,} baris lolos filter.".replace(",", "."))
+            st.caption(f"{len(df_f):,} dari {len(df):,} baris lolos filter.".replace(",", "."))
 
         return df_f, {
             "poli": poli_pilihan, "jenis_kelamin": jk_pilihan,
@@ -1048,7 +1089,7 @@ def apply_filters(_):
 def show_active_filters(fi):
     if not fi: return
     chips = [f"{k.replace('_',' ').title()}: {', '.join(map(str,v))}" for k,v in fi.items() if v]
-    if chips: st.caption("🎯 **Filter aktif:** " + " | ".join(chips))
+    if chips: st.caption("**Filter aktif:** " + " | ".join(chips))
 
 # ============================================================
 # ═══════════  ENSEMBLE FORECASTING ENGINE  ═══════════════════
@@ -1421,18 +1462,18 @@ def ensemble_forecast(train_df: pd.DataFrame, periods: int, freq: str = "W-MON")
 # ══════════════════════════════════════════════════════════════
 
 def page_ml_upgraded(df_filtered, filter_info):
-    st.subheader("🤖 Ensemble AI Forecasting")
+    st.subheader("Ensemble AI Forecasting")
     show_active_filters(filter_info)
 
     if df_filtered is None or len(df_filtered) == 0:
-        st.warning("⚠️ Data kosong.")
+        st.warning("Data kosong.")
         return
     if "tanggal_kunjungan" not in df_filtered.columns:
-        st.error("❌ Kolom 'tanggal_kunjungan' tidak ditemukan.")
+        st.error("Kolom 'tanggal_kunjungan' tidak ditemukan.")
         return
 
     # ── Penjelasan arsitektur ──────────────────────────────────
-    with st.expander("ℹ️ Tentang Arsitektur Ensemble Model", expanded=False):
+    with st.expander("Tentang Arsitektur Ensemble Model", expanded=False):
         st.markdown("""
         | Model | Keunggulan | Kelemahan |
         |---|---|---|
@@ -1450,7 +1491,7 @@ def page_ml_upgraded(df_filtered, filter_info):
         df_ml["tanggal_kunjungan"] = pd.to_datetime(df_ml["tanggal_kunjungan"], errors="coerce")
     df_ml = df_ml.dropna(subset=["tanggal_kunjungan"])
     if len(df_ml) == 0:
-        st.warning("⚠️ Data tanggal tidak valid.")
+        st.warning("Data tanggal tidak valid.")
         return
 
     max_date = df_ml["tanggal_kunjungan"].max().date()
@@ -1481,7 +1522,7 @@ def page_ml_upgraded(df_filtered, filter_info):
     # ── Siapkan data time-series ──────────────────────────────
     df_item = df_ml[df_ml[kolom_fokus] == pilihan_item].copy()
     if len(df_item) < 15:
-        st.error("❌ Data terlalu sedikit (< 15 baris) untuk ensemble forecasting.")
+        st.error("Data terlalu sedikit (< 15 baris) untuk ensemble forecasting.")
         return
 
     grouper   = pd.Grouper(key="tanggal_kunjungan", freq=freq)
@@ -1490,7 +1531,7 @@ def page_ml_upgraded(df_filtered, filter_info):
     weekly    = weekly[weekly["y"] > 0]
 
     if len(weekly) < 8:
-        st.error("❌ Data agregat terlalu sedikit setelah resampling.")
+        st.error("Data agregat terlalu sedikit setelah resampling.")
         return
 
     # Hitung periods
@@ -1502,7 +1543,7 @@ def page_ml_upgraded(df_filtered, filter_info):
         periods = max(1, int((target_dt.year - last_date_ts.year) * 12 +
                              (target_dt.month - last_date_ts.month)))
 
-    st.info(f"📊 Data: **{len(weekly)}** titik · Prediksi: **{periods}** {'minggu' if freq=='W-MON' else 'bulan'} ke depan")
+    st.info(f"Data: **{len(weekly)}** titik · Prediksi: **{periods}** {'minggu' if freq=='W-MON' else 'bulan'} ke depan")
 
     # ── Peringatan mutu deret sebelum model dijalankan ───────────────────────
     # 1) Patahan struktural: bila awal deret jauh lebih sepi daripada akhirnya,
@@ -1514,7 +1555,7 @@ def page_ml_upgraded(df_filtered, filter_info):
         _awal, _akhir = _y[:_k].mean(), _y[-_k:].mean()
         if _akhir > 0 and _awal < 0.35 * _akhir:
             st.warning(
-                f"⚠️ **Awal deret jauh lebih sepi daripada akhirnya** "
+                f"**Awal deret jauh lebih sepi daripada akhirnya** "
                 f"(rata-rata {_awal:.1f} lawan {_akhir:.1f} per periode). Ini lazim terjadi "
                 "pada masa awal pencatatan rekam medis elektronik, dan bukan berarti kasus "
                 "benar-benar meningkat sebesar itu. Model akan membacanya sebagai tren naik. "
@@ -1526,7 +1567,7 @@ def page_ml_upgraded(df_filtered, filter_info):
     if len(weekly) < _min_musim:
         _thn = len(weekly) / (52 if freq == "W-MON" else 12)
         st.warning(
-            f"⚠️ **Deret hanya mencakup sekitar {_thn:.1f} tahun.** Prophet dan SARIMA "
+            f"**Deret hanya mencakup sekitar {_thn:.1f} tahun.** Prophet dan SARIMA "
             "membutuhkan kira-kira tiga tahun data untuk mengenali pola musiman tahunan "
             "dengan mantap; di bawah itu komponen musimannya kurang teridentifikasi dan "
             "hasilnya bisa tidak stabil. "
@@ -1542,8 +1583,8 @@ def page_ml_upgraded(df_filtered, filter_info):
     # langsung menghilang karena status tombol "Jalankan" kembali False.
     run_key = f"{kolom_fokus}|{pilihan_item}|{freq}|{periods}|{len(weekly)}"
 
-    if st.button("🚀 Jalankan Ensemble Forecasting", type="primary"):
-        with st.spinner("🔄 Melatih Prophet, XGBoost & SARIMA (paralel)..."):
+    if st.button("Jalankan Ensemble Forecasting", type="primary"):
+        with st.spinner("Melatih Prophet, XGBoost & SARIMA (paralel)..."):
             results, best_name, best_fc, ensemble_fc, model_errors = ensemble_forecast(
                 weekly, periods, freq=freq
             )
@@ -1559,7 +1600,7 @@ def page_ml_upgraded(df_filtered, filter_info):
     saved = st.session_state.get("ensemble_run")
     if not saved or saved["key"] != run_key:
         if saved:
-            st.caption("ℹ️ Pilihan berubah — klik \"Jalankan Ensemble Forecasting\" lagi untuk hasil terbaru.")
+            st.caption("Pilihan berubah — klik \"Jalankan Ensemble Forecasting\" lagi untuk hasil terbaru.")
         return
 
     results     = saved["results"]
@@ -1571,10 +1612,10 @@ def page_ml_upgraded(df_filtered, filter_info):
         st.error("Semua model gagal. Coba dengan data lebih panjang.")
         return
 
-    st.success(f"✅ Selesai! Model terbaik: **{best_name}**")
+    st.success(f"Selesai! Model terbaik: **{best_name}**")
 
     # ── Tabel Evaluasi Akurasi ────────────────────────────
-    st.markdown("### 📊 Evaluasi Akurasi Model")
+    st.markdown("### Evaluasi Akurasi Model")
     st.markdown("""
     > **MAE** = rata-rata error absolut · **RMSE** = root mean square error · **MAPE** = error persentase rata-rata
     > MAPE < 10% = Sangat Baik · 10–20% = Baik · > 20% = Perlu Perbaikan
@@ -1585,7 +1626,7 @@ def page_ml_upgraded(df_filtered, filter_info):
             row = {"Model": name, **r["metrics"]}
             row["Dinilai pada"] = ("Data uji disisihkan" if r.get("mode") == "uji"
                                    else "Data latih sendiri")
-            row["Status"] = "🏆 Terbaik" if name == best_name else ""
+            row["Status"] = "Terbaik" if name == best_name else ""
             eval_rows.append(row)
 
     _mode = {r.get("mode") for r in results.values() if r.get("metrics")}
@@ -1597,7 +1638,7 @@ def page_ml_upgraded(df_filtered, filter_info):
         )
     elif "insample" in _mode:
         st.warning(
-            "⚠️ Sebagian model dinilai memakai data latihnya sendiri karena deret terlalu "
+            "Sebagian model dinilai memakai data latihnya sendiri karena deret terlalu "
             "pendek untuk disisihkan. Angka akurasinya cenderung terlalu bagus — "
             "perpanjang rentang tanggal agar penilaian lebih jujur."
         )
@@ -1613,7 +1654,7 @@ def page_ml_upgraded(df_filtered, filter_info):
     )
 
     # ── Grafik Perbandingan Model ─────────────────────────
-    st.markdown(f"### 📈 Perbandingan Prediksi: **{pilihan_item}**")
+    st.markdown(f"### Perbandingan Prediksi: **{pilihan_item}**")
     fig = go.Figure()
 
     # Aktual
@@ -1641,7 +1682,7 @@ def page_ml_upgraded(df_filtered, filter_info):
         if not ens_future.empty:
             fig.add_trace(go.Scatter(
                 x=ens_future["ds"], y=ens_future["yhat_ensemble"].clip(lower=0),
-                mode="lines+markers", name="⭐ Ensemble",
+                mode="lines+markers", name="Ensemble",
                 line=dict(color="#a78bfa" if GELAP else "#7c3aed", width=3),
             ))
 
@@ -1667,7 +1708,7 @@ def page_ml_upgraded(df_filtered, filter_info):
     tampil_grafik(fig, use_container_width=True)
 
     # ── Ringkasan Estimasi ────────────────────────────────
-    st.markdown(f"### 📢 Kesimpulan Estimasi Hingga {target_dt.strftime('%d %B %Y')}")
+    st.markdown(f"### Kesimpulan Estimasi Hingga {target_dt.strftime('%d %B %Y')}")
 
     # Gunakan ensemble atau best model
     use_fc = None
@@ -1691,7 +1732,7 @@ def page_ml_upgraded(df_filtered, filter_info):
             st.markdown(f"""
             <div class="accuracy-box">
             <div class="highlight-estimasi">
-            📆 Hingga <b>{tgl_akhir}</b>, model <b>{use_label}</b> memperkirakan 
+            Hingga <b>{tgl_akhir}</b>, model <b>{use_label}</b> memperkirakan 
             total akumulasi <b>{total_est:,} kunjungan/kasus</b> untuk <b>{pilihan_item}</b>.<br><br>
             Pada periode terakhir, diperkirakan <b>{est_akhir} kunjungan</b> baru.
             </div></div>
@@ -1705,7 +1746,7 @@ def page_ml_upgraded(df_filtered, filter_info):
         dl_df = use_fc.copy()
         dl_df.columns = ["Periode","Prediksi_Jumlah"]
         st.download_button(
-            "📥 Download Prediksi (Excel)",
+            "Download Prediksi (Excel)",
             convert_df_to_excel(dl_df),
             f"prediksi_{pilihan_item.lower().replace(' ','_')}.xlsx",
         )
@@ -1716,14 +1757,14 @@ def page_ml_upgraded(df_filtered, filter_info):
 # ══════════════════════════════════════════════════════════════
 
 def page_disease_seasonality(df_filtered, filter_info):
-    st.subheader("🌧️ Deteksi Penyakit Dominan per Musim / Bulan")
+    st.subheader("Deteksi Penyakit Dominan per Musim / Bulan")
     show_active_filters(filter_info)
 
     if df_filtered is None or len(df_filtered) == 0:
-        st.warning("⚠️ Data kosong.")
+        st.warning("Data kosong.")
         return
     if not {"tanggal_kunjungan","diagnosa"}.issubset(df_filtered.columns):
-        st.error("❌ Butuh kolom 'tanggal_kunjungan' dan 'diagnosa'.")
+        st.error("Butuh kolom 'tanggal_kunjungan' dan 'diagnosa'.")
         return
 
     df = df_filtered.copy()
@@ -1736,7 +1777,7 @@ def page_disease_seasonality(df_filtered, filter_info):
     tab1, tab2, tab3 = st.tabs(["Heatmap Bulanan", "Penyakit per Musim", "Tren Penyakit Spesifik"])
 
     with tab1:
-        st.markdown("#### 🗓️ Heatmap Frekuensi Penyakit per Bulan")
+        st.markdown("#### Heatmap Frekuensi Penyakit per Bulan")
         top_n = st.slider("Jumlah penyakit ditampilkan", 5, 20, 10, key="heat_n")
         top_diag = df["diagnosa"].value_counts().head(top_n).index.tolist()
         df_heat = df[df["diagnosa"].isin(top_diag)].copy()
@@ -1752,10 +1793,10 @@ def page_disease_seasonality(df_filtered, filter_info):
         )
         fig_heat.update_layout(margin=dict(l=0,r=0,t=40,b=0))
         tampil_grafik(fig_heat, use_container_width=True)
-        st.download_button("📥 Download Heatmap Data", convert_df_to_excel(pivot.reset_index()), "heatmap_penyakit.xlsx")
+        st.download_button("Download Heatmap Data", convert_df_to_excel(pivot.reset_index()), "heatmap_penyakit.xlsx")
 
     with tab2:
-        st.markdown("#### 🌦️ Top Penyakit per Musim")
+        st.markdown("#### Top Penyakit per Musim")
         _kolom = st.columns(2) + st.columns(2)     # 4 musim, disusun 2x2
         for musim_label, col_ui in zip(MUSIM_URUT, _kolom):
             df_musim = df[df["musim"] == musim_label]
@@ -1774,7 +1815,7 @@ def page_disease_seasonality(df_filtered, filter_info):
             fig.update_layout(coloraxis_showscale=False, height=350, yaxis=dict(categoryorder="total ascending"))
             tampil_grafik(fig, col_ui, use_container_width=True)
 
-        st.markdown("#### 📊 Perbandingan Intensitas Penyakit antar Musim")
+        st.markdown("#### Perbandingan Intensitas Penyakit antar Musim")
         st.caption(
             "Dibaca per musim, bukan sekadar hujan lawan kemarau. Penyakit saluran "
             "napas kerap memuncak pada masa **pancaroba**, dan puncak itu tidak terlihat "
@@ -1791,7 +1832,7 @@ def page_disease_seasonality(df_filtered, filter_info):
             df_comp_top = df_comp.sort_values("Ketimpangan", ascending=False).head(15)
             st.dataframe(df_comp_top.reset_index().rename(columns={"diagnosa":"Diagnosa"}), use_container_width=True, hide_index=True)
             
-        st.markdown("#### 📋 Rincian Lengkap Kasus per Musim")
+        st.markdown("#### Rincian Lengkap Kasus per Musim")
         df_rincian = df.groupby(["diagnosa", "musim"]).size().reset_index(name="Jumlah Kasus")
         df_pivot = df_rincian.pivot(index="diagnosa", columns="musim", values="Jumlah Kasus").fillna(0).astype(int)
         df_pivot["Total Kasus"] = df_pivot.sum(axis=1)
@@ -1799,7 +1840,7 @@ def page_disease_seasonality(df_filtered, filter_info):
         st.dataframe(df_pivot, use_container_width=True, hide_index=True)
 
     with tab3:
-        st.markdown("#### 📈 Tren Bulanan Penyakit Tertentu")
+        st.markdown("#### Tren Bulanan Penyakit Tertentu")
         top_all = df["diagnosa"].value_counts().head(20).index.tolist()
         penyakit_pilih = st.multiselect("Pilih penyakit untuk dibandingkan:", top_all, default=top_all[:3])
         if penyakit_pilih:
@@ -1821,7 +1862,7 @@ def page_disease_seasonality(df_filtered, filter_info):
 # ══════════════════════════════════════════════════════════════
 
 def page_overview(df_filtered, filter_info):
-    st.subheader("📌 Ringkasan Umum")
+    st.subheader("Ringkasan Umum")
     show_active_filters(filter_info)
     if df_filtered is None or len(df_filtered) == 0:
         st.warning("Tidak ada data.")
@@ -1833,7 +1874,7 @@ def page_overview(df_filtered, filter_info):
     if "diagnosa" in df_filtered.columns: col4.metric("Diagnosa",    df_filtered["diagnosa"].nunique())
     st.markdown("---")
     if "tanggal_kunjungan" in df_filtered.columns:
-        st.markdown("### 📈 Tren Kunjungan")
+        st.markdown("### Tren Kunjungan")
         trend = df_filtered.groupby(["tahun","bulan","nama_bulan"]).size().reset_index(name="count") \
                            .sort_values(["tahun","bulan"])
         trend["label"] = trend["nama_bulan"].astype(str) + "-" + trend["tahun"].astype(str)
@@ -1841,9 +1882,9 @@ def page_overview(df_filtered, filter_info):
                       labels={"label": "Bulan", "count": "Jumlah Kunjungan"})
         fig.update_layout(margin=dict(l=0, r=0, t=10, b=0), height=360)
         tampil_grafik(fig, use_container_width=True)
-        st.download_button("📥 Download Tren", convert_df_to_excel(trend), "tren_kunjungan.xlsx")
+        st.download_button("Download Tren", convert_df_to_excel(trend), "tren_kunjungan.xlsx")
     if "poli" in df_filtered.columns:
-        st.markdown("### 🏥 Distribusi Poli")
+        st.markdown("### Distribusi Poli")
         df_poli = df_filtered["poli"].value_counts().reset_index()
         df_poli.columns = ["Poli","Jumlah"]
         fig = px.bar(df_poli, x="Poli", y="Jumlah", text="Jumlah")
@@ -1853,7 +1894,7 @@ def page_overview(df_filtered, filter_info):
 
 
 def page_kunjungan(df_filtered, filter_info):
-    st.subheader("👥 Analisis Kunjungan")
+    st.subheader("Analisis Kunjungan")
     show_active_filters(filter_info)
     if df_filtered is None or len(df_filtered) == 0: return
     col1, col2 = st.columns(2)
@@ -1876,21 +1917,21 @@ def page_kunjungan(df_filtered, filter_info):
 
 
 def page_penyakit(df_filtered, filter_info):
-    st.subheader("🦠 Analisis Penyakit")
+    st.subheader("Analisis Penyakit")
     show_active_filters(filter_info)
     if df_filtered is None or len(df_filtered) == 0: return
     if "diagnosa" not in df_filtered.columns:
-        st.error("❌ Kolom 'diagnosa' tidak ditemukan.")
+        st.error("Kolom 'diagnosa' tidak ditemukan.")
         return
         
     col_s, col_u, col_t = st.columns([2,2,1])
     with col_s: top_n = st.slider("Jumlah diagnosa", 5, 30, 10)
     with col_u:
-        urutan = st.radio("Urut:", ["⬇️ Terbanyak","⬆️ Tersedikit"], horizontal=True)
+        urutan = st.radio("Urut:", ["Terbanyak","Tersedikit"], horizontal=True)
     with col_t:
         orientasi = st.selectbox("Orientasi", ["Horizontal","Vertikal"])
         
-    ascending = urutan.startswith("⬆️")
+    ascending = urutan == "Tersedikit"
     df_diag = df_filtered["diagnosa"].value_counts().head(top_n).reset_index()
     df_diag.columns = ["Diagnosa","Jumlah Kasus"]
     df_diag = df_diag.sort_values("Jumlah Kasus", ascending=ascending).reset_index(drop=True)
@@ -1909,18 +1950,18 @@ def page_penyakit(df_filtered, filter_info):
         
     tampil_grafik(fig, use_container_width=True)
     
-    st.markdown("### 📋 Rincian Data Penyakit")
+    st.markdown("### Rincian Data Penyakit")
     st.dataframe(df_diag, use_container_width=True, hide_index=True)
     
-    st.download_button("📥 Download Data Penyakit", convert_df_to_excel(df_diag), "top_penyakit.xlsx")
+    st.download_button("Download Data Penyakit", convert_df_to_excel(df_diag), "top_penyakit.xlsx")
 
 
 def page_peta_persebaran(df_filtered, filter_info):
-    st.subheader("🗺️ Peta Persebaran Penyakit")
+    st.subheader("Peta Persebaran Penyakit")
     show_active_filters(filter_info)
     if df_filtered is None or len(df_filtered) == 0: return
     if not {"desa","diagnosa"}.issubset(df_filtered.columns):
-        st.error("❌ Butuh kolom 'desa' dan 'diagnosa'.")
+        st.error("Butuh kolom 'desa' dan 'diagnosa'.")
         return
         
     top_penyakit = df_filtered["diagnosa"].value_counts().head(20).index.tolist()
@@ -1954,7 +1995,7 @@ def page_peta_persebaran(df_filtered, filter_info):
     if len(df_luar):
         n_kasus = int(df_luar["jumlah_kasus"].sum())
         st.info(
-            f"🧭 {n_kasus:,} kunjungan berasal dari {df_luar['desa'].nunique()} desa "
+            f"{n_kasus:,} kunjungan berasal dari {df_luar['desa'].nunique()} desa "
             "di luar wilayah kerja Puskesmas Purwosari, sehingga tidak ditampilkan "
             "di peta. Rinciannya tetap ada pada tabel di bawah.".replace(",", ".")
         )
@@ -1978,7 +2019,7 @@ def page_peta_persebaran(df_filtered, filter_info):
     )
     fig.update_layout(map_style="carto-positron", margin={"r":0,"t":0,"l":0,"b":0})
     
-    st.markdown("*(💡 Klik salah satu titik/lingkaran pada peta untuk melihat detail data dari desa tersebut)*")
+    st.markdown("*(Klik salah satu titik/lingkaran pada peta untuk melihat detail data dari desa tersebut)*")
     
     map_event = tampil_grafik(fig, use_container_width=True, on_select="rerun", selection_mode="points")
 
@@ -1988,23 +2029,23 @@ def page_peta_persebaran(df_filtered, filter_info):
 
     if selected_desa:
         st.markdown("---")
-        st.markdown(f"### 📍 Rincian Khusus Desa: **{selected_desa}**")
+        st.markdown(f"### Rincian Khusus Desa: **{selected_desa}**")
         
         df_desa_detail = df_filtered[df_filtered["desa"].str.title() == selected_desa]
         
-        st.markdown("#### 📊 Top Diagnosa")
+        st.markdown("#### Top Diagnosa")
         df_desa_diag = df_desa_detail["diagnosa"].value_counts().head(10).reset_index()
         df_desa_diag.columns = ["Diagnosa", "Jumlah Kasus"]
         fig_desa = px.bar(df_desa_diag, x="Jumlah Kasus", y="Diagnosa", orientation="h", color="Jumlah Kasus", color_continuous_scale="Viridis")
         fig_desa.update_layout(yaxis=dict(categoryorder="total ascending"), height=400, margin=dict(l=0, r=0, t=20, b=0))
         tampil_grafik(fig_desa, use_container_width=True)
         
-        st.markdown("#### 📋 Data Histori Kunjungan")
+        st.markdown("#### Data Histori Kunjungan")
         kolom_tabel = [c for c in ["tanggal_kunjungan", "no_rm", "umur", "jenis_kelamin", "diagnosa", "poli"] if c in df_desa_detail.columns]
         st.dataframe(df_desa_detail[kolom_tabel], use_container_width=True, hide_index=True)
             
     else:
-        st.markdown("### 📋 Tabel Akumulasi")
+        st.markdown("### Tabel Akumulasi")
         _tab = df_grouped.drop(columns=["latitude", "longitude"]).copy()
         _tab["wilayah"] = "Dalam wilayah"
         if len(df_luar):
@@ -2015,7 +2056,7 @@ def page_peta_persebaran(df_filtered, filter_info):
 
 
 def page_pembiayaan(df_filtered, filter_info):
-    st.subheader("💳 Analisis Pembiayaan")
+    st.subheader("Analisis Pembiayaan")
     if df_filtered is None or "pembiayaan" not in df_filtered.columns: return
     df_b = df_filtered["pembiayaan"].value_counts().reset_index()
     df_b.columns = ["Pembiayaan","Jumlah"]
@@ -2023,18 +2064,18 @@ def page_pembiayaan(df_filtered, filter_info):
     fig.update_traces(textposition="outside", cliponaxis=False)
     fig.update_layout(margin=dict(l=0, r=0, t=30, b=0), showlegend=False)
     tampil_grafik(fig, use_container_width=True)
-    st.download_button("📥 Download Pembiayaan", convert_df_to_excel(df_b), "pembiayaan.xlsx")
+    st.download_button("Download Pembiayaan", convert_df_to_excel(df_b), "pembiayaan.xlsx")
 
 
 def page_data(df_filtered, filter_info):
-    st.subheader("📄 Data & Unduhan")
+    st.subheader("Data & Unduhan")
     if df_filtered is None: return
     st.dataframe(df_filtered)
-    st.download_button("💾 Download CSV", df_filtered.to_csv(index=False).encode("utf-8"), "data_puskesmas.csv", "text/csv")
+    st.download_button("Download CSV", df_filtered.to_csv(index=False).encode("utf-8"), "data_puskesmas.csv", "text/csv")
 
 
 def page_quality(df):
-    st.subheader("🧹 Kualitas Data")
+    st.subheader("Kualitas Data")
     if df is None: return
     st.write(f"Duplikasi: **{df.duplicated().sum()}** baris")
     st.markdown("**Missing Values:**")
@@ -2042,7 +2083,7 @@ def page_quality(df):
 
 
 def page_ai_assistant(df_filtered, filter_info, is_genai):
-    st.subheader("\U0001F916 Asisten AI")
+    st.subheader("Asisten AI")
 
     # Riwayat percakapan disimpan di st.session_state, bukan ditampilkan langsung
     # di dalam blok `if st.button(...)`. Setiap interaksi (ganti menu, ubah
@@ -2056,14 +2097,14 @@ def page_ai_assistant(df_filtered, filter_info, is_genai):
     if riwayat:
         k1, k2 = st.columns([3, 1])
         with k1:
-            st.caption(f"\U0001F4AC {len(riwayat)} percakapan tersimpan selama sesi ini.")
+            st.caption(f"{len(riwayat)} percakapan tersimpan selama sesi ini.")
         with k2:
             transkrip = "# Riwayat Asisten AI — SIGAP-Bojonegoro\n\n" + "\n\n".join(
                 f"## {i}. {p['q']}\n\n*{p['waktu']} · {p['konteks']}*\n\n{p['a']}"
                 for i, p in enumerate(riwayat, 1)
             )
             st.download_button(
-                "⬇️ Unduh Riwayat",
+                "Unduh Riwayat",
                 transkrip,
                 file_name=f"riwayat-asisten-ai-{datetime.now():%Y%m%d-%H%M}.md",
                 mime="text/markdown",
@@ -2075,9 +2116,9 @@ def page_ai_assistant(df_filtered, filter_info, is_genai):
                 st.markdown(pesan["q"])
             with st.chat_message("assistant"):
                 st.markdown(pesan["a"])
-                st.caption(f"\U0001F550 {pesan['waktu']} · \U0001F4CA {pesan['konteks']}")
+                st.caption(f"{pesan['waktu']} · {pesan['konteks']}")
 
-        if st.button("\U0001F5D1️ Hapus Riwayat"):
+        if st.button("Hapus Riwayat"):
             st.session_state["ai_chat"] = []
             st.rerun()
         st.divider()
@@ -2086,7 +2127,7 @@ def page_ai_assistant(df_filtered, filter_info, is_genai):
         st.warning("Upload dan filter data terlebih dahulu untuk mengajukan pertanyaan baru.")
         return
     if not is_genai:
-        st.error("❌ API Key Gemini belum diset.")
+        st.error("API Key Gemini belum diset.")
         return
 
     total  = len(df_filtered)
@@ -2163,30 +2204,31 @@ def main():
     df_filtered, filter_info = apply_filters(None)
 
     pages = {
-        "📌 Ringkasan":                page_overview,
-        "👥 Analisis Kunjungan":       page_kunjungan,
-        "🦠 Analisis Penyakit":        page_penyakit,
-        "🌧️ Penyakit per Musim":      page_disease_seasonality,
-        "🗺️ Peta Persebaran":         page_peta_persebaran,
-        "🤖 Ensemble Forecasting":     page_ml_upgraded,
-        "💳 Pembiayaan":               page_pembiayaan,
-        "🧹 Kualitas Data":            page_quality,
-        "📄 Data & Unduhan":           page_data,
-        "💬 Asisten AI":               None,
+        "Ringkasan":                page_overview,
+        "Analisis Kunjungan":       page_kunjungan,
+        "Analisis Penyakit":        page_penyakit,
+        "Penyakit per Musim":      page_disease_seasonality,
+        "Peta Persebaran":         page_peta_persebaran,
+        "Ensemble Forecasting":     page_ml_upgraded,
+        "Pembiayaan":               page_pembiayaan,
+        "Kualitas Data":            page_quality,
+        "Data & Unduhan":           page_data,
+        "Asisten AI":               None,
     }
 
     with st.sidebar:
         st.markdown("---")
-        st.markdown("### 🗂️ Navigasi")
-        page_sel = st.radio("Pilih halaman:", list(pages.keys()), label_visibility="collapsed")
+        st.markdown("### Navigasi")
+        with st.container(key="navigasi"):
+            page_sel = st.radio("Pilih halaman:", list(pages.keys()), label_visibility="collapsed")
 
     if df_filtered is None:
-        st.info("👈 Upload file data di sidebar untuk memulai.")
+        st.info("Upload file data di sidebar untuk memulai.")
         return
 
-    if page_sel == "💬 Asisten AI":
+    if page_sel == "Asisten AI":
         page_ai_assistant(df_filtered, filter_info, is_genai)
-    elif page_sel == "🧹 Kualitas Data":
+    elif page_sel == "Kualitas Data":
         page_quality(df_filtered)
     else:
         fn = pages[page_sel]

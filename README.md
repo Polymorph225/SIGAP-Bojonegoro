@@ -34,13 +34,14 @@ Dashboard analisis & peramalan cerdas data kunjungan Puskesmas dengan arsitektur
 ## 🏗️ Arsitektur Model Ensemble
 
 ```
-Data Input (6–12 bulan, agregat mingguan/bulanan)
+Data Input (idealnya ≥3 tahun, agregat mingguan/bulanan)
         │
         ▼
 ┌───────────────────────────────────────────────┐
 │           FEATURE ENGINEERING                 │
 │  • Temporal: week, month, quarter, year       │
-│  • Musim hujan Indonesia (Nov–Apr)            │
+│  • 4 musim: Hujan, Pancaroba I, Kemarau,      │
+│    Pancaroba II (puncak ISPA Sep–Nov)         │
 │  • Lag features: lag_1, lag_2, lag_3, lag_4  │
 │  • Rolling mean: roll_mean_4, roll_mean_8     │
 │  • Rolling std: roll_std_4                    │
@@ -51,8 +52,8 @@ Data Input (6–12 bulan, agregat mingguan/bulanan)
    ┌─────────┐ ┌───────┐ ┌──────────────────┐
    │ PROPHET │ │  XGB  │ │ SARIMA(1,1,1)    │
    │         │ │ Boost │ │ (1,1,0)[52]      │
-   │Regressors│ │300est.│ │ Seasonal weekly  │
-   │musim    │ │LR=0.05│ │                  │
+   │4 musim + │ │300est.│ │ Seasonal weekly  │
+   │yearly(3) │ │LR=0.05│ │                  │
    └────┬────┘ └───┬───┘ └────────┬─────────┘
         │          │              │
         └──────────┼──────────────┘
@@ -132,32 +133,53 @@ Buka browser di `http://localhost:8501`
 ```
 SIGAP-Bojonegoro/
 │
-├── sigap_bojonegoro.py          # 🔑 Kode utama aplikasi Streamlit
-├── requirements.txt          # Daftar library Python
-├── README.md                 # Dokumentasi ini
+├── sigap_bojonegoro.py               # 🔑 Kode utama aplikasi Streamlit
+├── requirements.txt                  # Daftar library Python
+├── README.md                         # Dokumentasi ini
+├── Buku Panduan SIGAP-Bojonegoro.pdf # Panduan pengguna
 │
-├── Data Dummy 10000.xlsx     # Contoh data uji (10.000 baris)
-├── Data Dummy 5000.xlsx      # Contoh data uji (5.000 baris)
+├── Data Dummy 10000.xlsx             # Contoh data uji (10.000 baris)
+├── Data Dummy 5000.xlsx              # Contoh data uji (5.000 baris)
 │
-└── .streamlit/               # (Lokal, jangan di-commit)
-    └── secrets.toml          # API key rahasia
+├── tests/test_inti.py                # Tes otomatis (pytest)
+├── pytest.ini
+├── .github/workflows/python-app.yml  # CI: flake8 + pytest
+├── .devcontainer/                    # Konfigurasi GitHub Codespaces
+│
+└── .streamlit/
+    ├── config.toml                   # Tema (ikut di repo)
+    └── secrets.toml                  # API key — lokal saja, sudah di .gitignore
 ```
+
+---
+
+## 🧪 Pengujian
+
+```bash
+pip install pytest
+pytest
+```
+Tes inti (pembacaan berkas RME, pemetaan kolom, fitur musim, evaluasi) hanya butuh pustaka ringan. Tes model Prophet/XGBoost/SARIMA ikut dijalankan bila pustakanya terpasang, dan dilewati bila tidak — begitu pula di GitHub Actions agar CI tetap cepat.
 
 ---
 
 ## 📋 Format Data yang Didukung
 
-File CSV atau Excel dengan kolom-kolom berikut (nama fleksibel, sistem auto-detect):
+File CSV, Excel, atau **ekspor bulanan RME Sintesa Emas (.xls) apa adanya**. Ekspor RME itu sebenarnya teks berpemisah tab meski berekstensi .xls; aplikasi mengenali jenis berkas dari isinya, bukan dari ekstensinya. Beberapa berkas bulanan boleh diunggah sekaligus — digabung otomatis, baris yang kembar karena rentang tanggal tumpang tindih dibuang sekali. Kolom identitas (nama, NIK, alamat) tidak ikut dimuat.
+
+Tanggal dibaca dengan gaya Indonesia (`01/04/2026` = 1 April), dan nomor rekam medis tetap utuh beserta angka nol di depannya.
+
+Kolom-kolom berikut dikenali otomatis (nama fleksibel):
 
 | Kolom Standar | Alias yang Dikenali |
 |---|---|
-| `tanggal_kunjungan` | `tgl_kunjungan`, `tanggal`, `visit_date` |
-| `no_rm` | `no_rekam_medis`, `norm`, `rekammedis` |
-| `umur` | `usia`, `age` |
-| `jenis_kelamin` | `jk`, `sex`, `kelamin` |
-| `poli` | `unit`, `unit_layanan`, `poliklinik` |
+| `tanggal_kunjungan` | `Tgl`, `tgl_kunjungan`, `tanggal`, `visit_date` |
+| `no_rm` | `No RM`, `no_rekam_medis`, `rekammedis` |
+| `umur` | `Usia` (mis. "69 Thn 11 Bln"), `age` |
+| `jenis_kelamin` | `L/LP`, `jk`, `sex`, `kelamin` |
+| `poli` | `Unit`, `unit_layanan`, `poliklinik` |
 | `diagnosa` | `diagnosis`, `icd10`, `diag` |
-| `pembiayaan` | `cara_bayar`, `penjamin`, `jaminan` |
+| `pembiayaan` | `Cara Bayar`, `penjamin`, `jaminan` |
 | `desa` | `kelurahan`, `alamat_desa` |
 
 ---
@@ -187,7 +209,7 @@ File CSV atau Excel dengan kolom-kolom berikut (nama fleksibel, sistem auto-dete
 | 20–30% | 🟠 Cukup |
 | > 30% | 🔴 Perlu Perbaikan (data kurang / pola tidak stabil) |
 
-> **Tips:** Dengan data 6–12 bulan, MAPE 10–25% adalah hasil yang wajar untuk data kunjungan Puskesmas yang memiliki variasi tinggi.
+> **Tips:** Prophet dan SARIMA butuh kira-kira tiga tahun data untuk mengenali pola tahunan dengan mantap; aplikasi menampilkan peringatan bila deret lebih pendek. MAPE 10–25% wajar untuk data kunjungan Puskesmas yang variasinya tinggi. Angka akurasi dihitung pada 20% data terakhir yang disisihkan, bukan pada data latih.
 
 ---
 

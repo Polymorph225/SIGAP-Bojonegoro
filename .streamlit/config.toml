@@ -1,6 +1,17 @@
-# Tema dasar dikunci ke "light". Warna mode terang/gelap sepenuhnya diatur oleh
-# CSS di sigap_bojonegoro.py dan otomatis mengikuti setelan perangkat pengguna
-# (prefers-color-scheme), sehingga tulisan tetap terbaca di mode apa pun.
+# Dua tema (terang & gelap) didefinisikan supaya menu ⋮ di pojok kanan atas
+# menampilkan pilihan System / Light / Dark. "System" mengikuti setelan HP/laptop.
+# Warna kustom lain (gradien, kartu, menu) ada di sigap_bojonegoro.py dan
+# otomatis menyesuaikan tema yang dipilih.
 [theme]
-base = "light"
 primaryColor = "#1e5eff"
+
+[theme.light]
+backgroundColor = "#f5f8ff"
+secondaryBackgroundColor = "#ffffff"
+textColor = "#1e293b"
+
+[theme.dark]
+primaryColor = "#3b7bff"
+backgroundColor = "#0b1222"
+secondaryBackgroundColor = "#172138"
+textColor = "#d6deeb"

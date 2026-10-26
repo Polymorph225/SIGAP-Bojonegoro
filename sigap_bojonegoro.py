@@ -31,122 +31,67 @@ st.set_page_config(
 )
 
 # ============================================================
-# MODE TAMPILAN — OTOMATIS MENGIKUTI PERANGKAT
+# TEMA TERANG / GELAP — dipilih lewat menu ⋮ (System / Light / Dark)
 # ============================================================
-# Mode terang/gelap mengikuti setelan HP/laptop pengguna lewat media query CSS
-# `prefers-color-scheme`, tanpa tombol pilihan. Semua warna teks, latar, dan
-# isian ditentukan sendiri oleh CSS di bawah — tidak bergantung pada tema
-# bawaan Streamlit (dikunci "light" di .streamlit/config.toml). Sebelumnya,
-# perangkat bermode gelap membuat Streamlit menulis teks putih di atas latar
-# yang dipaksa terang, sehingga tulisan "hilang".
+# Warna dasar kedua tema didefinisikan di .streamlit/config.toml ([theme.light]
+# dan [theme.dark]). Karena keduanya ada, menu ⋮ di pojok kanan atas
+# menampilkan pilihan System / Light / Dark; "System" mengikuti setelan HP/laptop.
+#
+# Saat tema berganti, Streamlit mengubah `color-scheme` pada kontainer aplikasi.
+# Setiap warna kustom di bawah ditulis sebagai light-dark(<terang>, <gelap>),
+# jadi browser otomatis memakai nilai yang sesuai — tanpa muat ulang halaman.
+# Bagian bawaan Streamlit (isian, tabel, daftar pilihan, kotak peringatan,
+# grafik) sudah diwarnai oleh tema Streamlit sendiri.
 
-
-# ── Token warna per mode ─────────────────────────────────────
-TOKEN_TERANG = """
-    --sigap-blue:        #1e5eff;
-    --sigap-blue-deep:   #1039a8;
-    --sigap-cyan:        #06b6d4;
-    --sigap-ink:         #0f172a;
-    --sigap-text:        #1e293b;
-    --sigap-muted:       #56637a;
-    --sigap-accent-text: #1039a8;
-    --sigap-line:        rgba(148,163,184,.30);
-    --sigap-line-strong: rgba(100,116,139,.38);
-    --sigap-surface:     rgba(255,255,255,.74);
-    --sigap-surface-solid: #ffffff;
-    --sigap-tab:         rgba(255,255,255,.55);
-    --sigap-input:       #ffffff;
-    --sigap-hover:       #eef3ff;
-    --sigap-nav-active:  rgba(30,94,255,.10);
-    --sigap-code-bg:     rgba(15,23,42,.06);
-    --sigap-code-text:   #0b6b3a;
-    --sigap-table-head:  rgba(30,94,255,.06);
-    --sigap-chart-bg:    rgba(255,255,255,.66);
-    --sigap-header-bg:   rgba(245,248,255,.72);
-    --sigap-metric-a:    #1039a8;
-    --sigap-metric-b:    #06b6d4;
-    --sigap-sheen:       rgba(255,255,255,.95);
-    --sigap-app-bg:
-        radial-gradient(900px 520px at 12% -8%,  rgba(30,94,255,.13), transparent 60%),
-        radial-gradient(760px 460px at 92% 4%,   rgba(6,182,212,.12), transparent 62%),
-        linear-gradient(180deg, #f5f8ff 0%, #eef3fb 46%, #f7f9fc 100%);
-    --sigap-sidebar-bg:  linear-gradient(185deg, #ffffff 0%, #f3f7ff 100%);
-
-    --sigap-info-bg:     rgba(28,131,225,.10);  --sigap-info-text:    #0b4a8b;
-    --sigap-success-bg:  rgba(33,195,84,.11);   --sigap-success-text: #11622f;
-    --sigap-warning-bg:  rgba(255,189,69,.20);  --sigap-warning-text: #7a4800;
-    --sigap-error-bg:    rgba(255,43,43,.09);   --sigap-error-text:   #8f1d1d;
-
-    --badge-prophet-bg: linear-gradient(145deg,#e6efff,#cfe0ff); --badge-prophet-fg: #1746b8;
-    --badge-xgb-bg:     linear-gradient(145deg,#e4fbec,#c9f3da); --badge-xgb-fg:     #12693c;
-    --badge-sarima-bg:  linear-gradient(145deg,#fff5da,#ffe9b4); --badge-sarima-fg:  #8a5a06;
-    --badge-ens-bg:     linear-gradient(145deg,#f4e9ff,#e7d6ff); --badge-ens-fg:     #6320a8;
-    --badge-win-bg:     linear-gradient(145deg,#ffe3e3,#ffc9c9); --badge-win-fg:     #a11a1a;
-
-    --lift-1: 0 1px 2px rgba(15,23,42,.05), 0 2px 6px rgba(15,23,42,.06);
-    --lift-2: 0 2px 4px rgba(15,23,42,.04), 0 10px 24px rgba(30,94,255,.12);
-    --lift-3: 0 12px 28px rgba(30,94,255,.18), 0 28px 56px rgba(15,23,42,.12);
-    --sidebar-shadow: 6px 0 26px rgba(15,23,42,.06);
-    color-scheme: light;
-"""
-
-TOKEN_GELAP = """
-    --sigap-blue:        #3b7bff;
-    --sigap-blue-deep:   #1e5eff;
-    --sigap-cyan:        #22d3ee;
-    --sigap-ink:         #eef3fb;
-    --sigap-text:        #d6deeb;
-    --sigap-muted:       #9aa8bf;
-    --sigap-accent-text: #a9c6ff;
-    --sigap-line:        rgba(148,163,184,.20);
-    --sigap-line-strong: rgba(148,163,184,.34);
-    --sigap-surface:     rgba(23,33,56,.78);
-    --sigap-surface-solid: #172138;
-    --sigap-tab:         rgba(23,33,56,.55);
-    --sigap-input:       #111a2e;
-    --sigap-hover:       #22304f;
-    --sigap-nav-active:  rgba(59,123,255,.20);
-    --sigap-code-bg:     rgba(148,163,184,.14);
-    --sigap-code-text:   #86efac;
-    --sigap-table-head:  rgba(59,123,255,.12);
-    --sigap-chart-bg:    rgba(20,30,52,.72);
-    --sigap-header-bg:   rgba(10,16,30,.72);
-    --sigap-metric-a:    #8fb4ff;
-    --sigap-metric-b:    #5eead4;
-    --sigap-sheen:       rgba(255,255,255,.16);
-    --sigap-app-bg:
-        radial-gradient(900px 520px at 12% -8%,  rgba(30,94,255,.20), transparent 60%),
-        radial-gradient(760px 460px at 92% 4%,   rgba(6,182,212,.13), transparent 62%),
-        linear-gradient(180deg, #0b1222 0%, #0d1528 46%, #0a1020 100%);
-    --sigap-sidebar-bg:  linear-gradient(185deg, #111a2e 0%, #0c1426 100%);
-
-    --sigap-info-bg:     rgba(59,130,246,.16);  --sigap-info-text:    #c7dcff;
-    --sigap-success-bg:  rgba(34,197,94,.15);   --sigap-success-text: #bbf7d0;
-    --sigap-warning-bg:  rgba(250,204,21,.13);  --sigap-warning-text: #fde68a;
-    --sigap-error-bg:    rgba(248,113,113,.15); --sigap-error-text:   #fecaca;
-
-    --badge-prophet-bg: rgba(59,130,246,.22);  --badge-prophet-fg: #bfd5ff;
-    --badge-xgb-bg:     rgba(34,197,94,.20);   --badge-xgb-fg:     #b4f2cb;
-    --badge-sarima-bg:  rgba(245,158,11,.20);  --badge-sarima-fg:  #fcd9a0;
-    --badge-ens-bg:     rgba(168,85,247,.22);  --badge-ens-fg:     #e3cdff;
-    --badge-win-bg:     rgba(239,68,68,.22);   --badge-win-fg:     #ffc9c9;
-
-    --lift-1: 0 1px 2px rgba(0,0,0,.30), 0 2px 6px rgba(0,0,0,.26);
-    --lift-2: 0 2px 4px rgba(0,0,0,.28), 0 10px 24px rgba(0,0,0,.34);
-    --lift-3: 0 12px 28px rgba(0,0,0,.42), 0 28px 56px rgba(30,94,255,.14);
-    --sidebar-shadow: 6px 0 26px rgba(0,0,0,.35);
-    color-scheme: dark;
-"""
-
-CSS_DASAR = """
+CSS_TEMA = """
 <style>
-:root { __TOKEN__ }
+:root {
+    --sigap-blue:        light-dark(#1e5eff, #3b7bff);
+    --sigap-cyan:        light-dark(#06b6d4, #22d3ee);
+    --sigap-ink:         light-dark(#0f172a, #eef3fb);
+    --sigap-muted:       light-dark(#56637a, #9aa8bf);
+    --sigap-accent-text: light-dark(#1039a8, #a9c6ff);
+    --sigap-line:        light-dark(rgba(148,163,184,.30), rgba(148,163,184,.20));
+    --sigap-surface:     light-dark(rgba(255,255,255,.74), rgba(23,33,56,.78));
+    --sigap-surface-solid: light-dark(#ffffff, #172138);
+    --sigap-tab:         light-dark(rgba(255,255,255,.55), rgba(23,33,56,.55));
+    --sigap-hover:       light-dark(#eef3ff, #22304f);
+    --sigap-nav-active:  light-dark(rgba(30,94,255,.10), rgba(59,123,255,.20));
+    --sigap-chart-bg:    light-dark(rgba(255,255,255,.66), rgba(20,30,52,.72));
+    --sigap-header-bg:   light-dark(rgba(245,248,255,.72), rgba(10,16,30,.72));
+    --sigap-metric-a:    light-dark(#1039a8, #8fb4ff);
+    --sigap-metric-b:    light-dark(#06b6d4, #5eead4);
+    --sigap-sheen:       light-dark(rgba(255,255,255,.95), rgba(255,255,255,.16));
 
-/* ── Latar & teks dasar ───────────────────────────────── */
+    --sigap-glow-1: light-dark(rgba(30,94,255,.13), rgba(30,94,255,.20));
+    --sigap-glow-2: light-dark(rgba(6,182,212,.12), rgba(6,182,212,.13));
+    --sigap-bg-1:   light-dark(#f5f8ff, #0b1222);
+    --sigap-bg-2:   light-dark(#eef3fb, #0d1528);
+    --sigap-bg-3:   light-dark(#f7f9fc, #0a1020);
+    --sigap-side-1: light-dark(#ffffff, #111a2e);
+    --sigap-side-2: light-dark(#f3f7ff, #0c1426);
+
+    --badge-prophet-bg: light-dark(#dbe7ff, rgba(59,130,246,.22));  --badge-prophet-fg: light-dark(#1746b8, #bfd5ff);
+    --badge-xgb-bg:     light-dark(#d9f5e4, rgba(34,197,94,.20));   --badge-xgb-fg:     light-dark(#12693c, #b4f2cb);
+    --badge-sarima-bg:  light-dark(#fff0c7, rgba(245,158,11,.20));  --badge-sarima-fg:  light-dark(#8a5a06, #fcd9a0);
+    --badge-ens-bg:     light-dark(#ece0ff, rgba(168,85,247,.22));  --badge-ens-fg:     light-dark(#6320a8, #e3cdff);
+    --badge-win-bg:     light-dark(#ffdcdc, rgba(239,68,68,.22));   --badge-win-fg:     light-dark(#a11a1a, #ffc9c9);
+
+    --shadow-soft: light-dark(rgba(15,23,42,.06), rgba(0,0,0,.30));
+    --shadow-blue: light-dark(rgba(30,94,255,.12), rgba(0,0,0,.34));
+    --shadow-deep: light-dark(rgba(15,23,42,.12), rgba(0,0,0,.42));
+    --lift-1: 0 1px 2px var(--shadow-soft), 0 2px 6px var(--shadow-soft);
+    --lift-2: 0 2px 4px var(--shadow-soft), 0 10px 24px var(--shadow-blue);
+    --lift-3: 0 12px 28px var(--shadow-blue), 0 28px 56px var(--shadow-deep);
+}
+
+/* ── Latar: gradien lembut + noda cahaya ──────────────── */
 .stApp {
-    background: var(--sigap-app-bg);
+    background:
+        radial-gradient(900px 520px at 12% -8%, var(--sigap-glow-1), transparent 60%),
+        radial-gradient(760px 460px at 92% 4%,  var(--sigap-glow-2), transparent 62%),
+        linear-gradient(180deg, var(--sigap-bg-1) 0%, var(--sigap-bg-2) 46%, var(--sigap-bg-3) 100%);
     background-attachment: fixed;
-    color: var(--sigap-text);
 }
 .block-container { padding: 1.25rem 2rem 3.5rem 2rem; max-width: 1500px; }
 
@@ -155,55 +100,14 @@ header[data-testid="stHeader"] {
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
 }
-header[data-testid="stHeader"] button,
-header[data-testid="stHeader"] a,
-[data-testid="stSidebarCollapseButton"] button,
-[data-testid="stExpandSidebarButton"] { color: var(--sigap-muted) !important; }
 
-.stApp h1, .stApp h2, .stApp h3, .stApp h4, .stApp h5, .stApp h6,
-.stApp [data-testid="stHeading"] * {
-    color: var(--sigap-ink);
-    letter-spacing: -.015em;
-}
+.stApp h1, .stApp h2, .stApp h3, .stApp h4,
+.stApp [data-testid="stHeading"] * { color: var(--sigap-ink); letter-spacing: -.015em; }
 .stApp h1 { font-weight: 800 !important; }
 .stApp h2, .stApp h3 { font-weight: 700 !important; }
-
-.stApp [data-testid="stMarkdownContainer"],
-.stApp [data-testid="stMarkdownContainer"] :is(p, li, td, th, strong, b, em, blockquote),
-.stApp [data-testid="stText"],
-.stApp [data-testid="stWidgetLabel"],
-.stApp [data-testid="stWidgetLabel"] p,
-.stApp [data-testid="stExpander"] summary,
-.stApp [data-testid="stExpander"] summary p,
-.stApp [data-testid="stRadioOption"] p,
-.stApp [data-testid="stCheckbox"] p,
-.stApp [data-testid="stFileChipName"],
-.stApp [data-testid="stJson"] {
-    color: var(--sigap-text);
-}
-.stApp [data-testid="stCaptionContainer"],
-.stApp [data-testid="stCaptionContainer"] p,
-.stApp [data-testid="stMetricLabel"],
-.stApp [data-testid="stMetricLabel"] p,
-.stApp [data-testid="stSliderTickBar"],
-.stApp [data-testid="stTooltipIcon"] svg,
-.stApp small { color: var(--sigap-muted) !important; }
-
-.stApp a:not([data-testid^="stBaseLinkButton"]) { color: var(--sigap-accent-text); }
-.stApp code {
-    background: var(--sigap-code-bg);
-    color: var(--sigap-code-text);
-}
-.stApp [data-testid="stMarkdownContainer"] blockquote {
-    border-left-color: var(--sigap-line-strong);
-}
-.stApp [data-testid="stMarkdownContainer"] table { border-color: var(--sigap-line); }
-.stApp [data-testid="stMarkdownContainer"] :is(th, td) { border-color: var(--sigap-line) !important; }
-.stApp [data-testid="stMarkdownContainer"] th { background: var(--sigap-table-head); }
-.stApp hr { border-color: var(--sigap-line) !important; background: var(--sigap-line); }
+.stApp hr { border-color: var(--sigap-line) !important; }
 
 /* ── Kartu metrik: kaca + terangkat + miring saat disentuh ── */
-[data-testid="metric-container"],
 [data-testid="stMetric"] {
     position: relative;
     padding: 1rem 1.15rem;
@@ -217,18 +121,16 @@ header[data-testid="stHeader"] a,
     transition: transform .28s cubic-bezier(.22,1,.36,1), box-shadow .28s ease;
 }
 /* garis cahaya tipis di tepi atas — kesan permukaan kena cahaya */
-[data-testid="metric-container"]::before,
 [data-testid="stMetric"]::before {
     content: "";
     position: absolute; inset: 0;
     border-radius: inherit;
     padding: 1px;
-    background: linear-gradient(160deg, var(--sigap-sheen), rgba(255,255,255,0) 42%);
+    background: linear-gradient(160deg, var(--sigap-sheen), transparent 42%);
     -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
     -webkit-mask-composite: xor; mask-composite: exclude;
     pointer-events: none;
 }
-[data-testid="metric-container"]:hover,
 [data-testid="stMetric"]:hover {
     transform: perspective(900px) translateY(-4px) rotateX(4deg);
     box-shadow: var(--lift-3);
@@ -258,7 +160,7 @@ header[data-testid="stHeader"] a,
 .badge-ensemble { background: var(--badge-ens-bg);     color: var(--badge-ens-fg) !important; }
 .badge-winner   { background: var(--badge-win-bg);     color: var(--badge-win-fg) !important; }
 
-/* ── Kotak akurasi & info ─────────────────────────────── */
+/* ── Kotak kesimpulan estimasi ────────────────────────── */
 .accuracy-box {
     padding: 1.05rem 1.2rem;
     border-radius: 14px;
@@ -267,22 +169,10 @@ header[data-testid="stHeader"] a,
     box-shadow: var(--lift-1);
     margin-bottom: 1rem;
 }
-.highlight-estimasi, .highlight-estimasi * {
-    color: var(--sigap-accent-text) !important;
-}
+.highlight-estimasi, .highlight-estimasi * { color: var(--sigap-accent-text) !important; }
 .highlight-estimasi { font-size: 1.06rem; font-weight: 800; line-height: 1.6; }
 
-/* ── Kotak peringatan (info / sukses / waspada / galat) ── */
-[data-testid="stAlertContainer"]:has([data-testid="stAlertContentInfo"])    { background: var(--sigap-info-bg) !important; }
-[data-testid="stAlertContainer"]:has([data-testid="stAlertContentSuccess"]) { background: var(--sigap-success-bg) !important; }
-[data-testid="stAlertContainer"]:has([data-testid="stAlertContentWarning"]) { background: var(--sigap-warning-bg) !important; }
-[data-testid="stAlertContainer"]:has([data-testid="stAlertContentError"])   { background: var(--sigap-error-bg) !important; }
-[data-testid="stAlertContentInfo"]    { --sigap-text: var(--sigap-info-text);    color: var(--sigap-info-text) !important; }
-[data-testid="stAlertContentSuccess"] { --sigap-text: var(--sigap-success-text); color: var(--sigap-success-text) !important; }
-[data-testid="stAlertContentWarning"] { --sigap-text: var(--sigap-warning-text); color: var(--sigap-warning-text) !important; }
-[data-testid="stAlertContentError"]   { --sigap-text: var(--sigap-error-text);   color: var(--sigap-error-text) !important; }
-
-/* ── Panel bawaan Streamlit ───────────────────────────── */
+/* ── Panel bawaan Streamlit: sudut membulat & bayangan ── */
 div[data-testid="stExpander"],
 div[data-testid="stAlert"],
 div[data-testid="stDataFrame"],
@@ -294,87 +184,6 @@ div[data-testid="stTable"] {
 }
 div[data-testid="stExpander"] { background: var(--sigap-surface); }
 div[data-testid="stExpander"] details { border: none !important; }
-div[data-testid="stExpander"] summary { background: transparent !important; }
-div[data-testid="stExpander"] summary:hover { background: var(--sigap-hover) !important; }
-.stApp [data-testid="stFileChip"] { background: var(--sigap-hover) !important; }
-.stApp [data-testid="stRadio"] input[type="radio"]:not(:checked) + div { background: var(--sigap-line-strong) !important; }
-.stApp [data-testid="stRadio"] input[type="radio"]:not(:checked) + div > div { background: var(--sigap-input) !important; }
-.stApp [data-testid="stCheckbox"] input[type="checkbox"]:not(:checked) + div { background: var(--sigap-input) !important; border-color: var(--sigap-line-strong) !important; }
-div[data-testid="stExpander"] summary svg { color: var(--sigap-muted); }
-[data-testid="stForm"] { border-color: var(--sigap-line) !important; background: var(--sigap-surface); }
-[data-testid="stChatMessage"] {
-    background: var(--sigap-surface);
-    border: 1px solid var(--sigap-line);
-    border-radius: 14px;
-}
-[data-testid="stElementToolbar"] { background: var(--sigap-surface-solid); border-radius: 8px; }
-[data-testid="stElementToolbar"] button { color: var(--sigap-muted) !important; }
-
-/* ── Isian: teks, pilihan, tanggal, angka, unggah ─────── */
-.stApp [data-baseweb="input"],
-.stApp [data-baseweb="base-input"],
-.stApp [data-baseweb="textarea"],
-.stApp [data-baseweb="select"] > div,
-.stApp [data-testid="stDateInputField"],
-.stApp :is([data-testid="stMultiSelect"], [data-testid="stSelectbox"]) > div:not([data-testid]) > div:first-child,
-.stApp [data-testid="stTimeInput"] div:has(> input),
-.stApp :is([data-testid="stMultiSelect"], [data-testid="stSelectbox"],
-           [data-testid="stTextInput"], [data-testid="stNumberInput"],
-           [data-testid="stTextArea"], [data-testid="stChatInput"]) div:has(> :is(input, textarea)),
-.stApp [data-testid="stFileUploaderDropzone"] {
-    background-color: var(--sigap-input) !important;
-    border-color: var(--sigap-line-strong) !important;
-}
-.stApp [data-baseweb="input"] input,
-.stApp [data-baseweb="base-input"] input,
-.stApp [data-baseweb="textarea"] textarea,
-.stApp [data-baseweb="select"] input,
-.stApp [data-baseweb="select"] [class*="singleValue"],
-.stApp [data-baseweb="select"] div[value],
-.stApp :is([data-testid="stDateInput"], [data-testid="stMultiSelect"], [data-testid="stSelectbox"],
-           [data-testid="stTextInput"], [data-testid="stNumberInput"], [data-testid="stTimeInput"],
-           [data-testid="stTextArea"], [data-testid="stChatInput"]) :is(input, textarea),
-.stApp [data-testid="stDateInputField"] span {
-    color: var(--sigap-text) !important;
-    -webkit-text-fill-color: var(--sigap-text) !important;
-    caret-color: var(--sigap-text);
-    background-color: transparent !important;
-}
-.stApp [data-baseweb="select"] > div > div:first-child { color: var(--sigap-text); }
-.stApp input::placeholder, .stApp textarea::placeholder {
-    color: var(--sigap-muted) !important;
-    -webkit-text-fill-color: var(--sigap-muted) !important;
-    opacity: 1;
-}
-.stApp [data-baseweb="select"] svg,
-.stApp [data-baseweb="input"] svg,
-.stApp :is([data-testid="stDateInput"], [data-testid="stMultiSelect"],
-           [data-testid="stSelectbox"]) svg { color: var(--sigap-muted); }
-.stApp [data-testid="stFileUploaderDropzone"] { border-style: dashed !important; }
-.stApp [data-testid="stFileUploaderDropzone"] * { color: var(--sigap-text); }
-.stApp [data-testid="stFileUploaderDropzone"] small,
-.stApp [data-testid="stFileUploaderDropzone"] span + small { color: var(--sigap-muted) !important; }
-.stApp [data-testid="stFileUploaderDropzone"] button { color: var(--sigap-text) !important; }
-.stApp [data-testid="stNumberInput"] button { background: var(--sigap-input); color: var(--sigap-text); }
-
-/* Daftar pilihan & kalender muncul di luar .stApp (lapisan "popover") */
-div[data-baseweb="popover"] > div,
-div[data-baseweb="popover"] ul,
-div[data-baseweb="popover"] [data-baseweb="calendar"],
-div[data-baseweb="popover"] [data-baseweb="calendar"] > div {
-    background-color: var(--sigap-surface-solid) !important;
-    color: var(--sigap-text) !important;
-}
-div[data-baseweb="popover"] li,
-div[data-baseweb="popover"] li * { color: var(--sigap-text) !important; }
-div[data-baseweb="popover"] li:hover,
-div[data-baseweb="popover"] li[aria-selected="true"] { background-color: var(--sigap-hover) !important; }
-div[data-baseweb="popover"] [data-baseweb="calendar"] [role="gridcell"],
-div[data-baseweb="popover"] [data-baseweb="calendar"] [role="gridcell"] *,
-div[data-baseweb="popover"] [data-baseweb="calendar"] [role="presentation"],
-div[data-baseweb="popover"] [data-baseweb="calendar"] button,
-div[data-baseweb="popover"] [data-baseweb="calendar"] div { color: var(--sigap-text); }
-div[data-baseweb="popover"] [data-baseweb="calendar"] svg { fill: var(--sigap-text); color: var(--sigap-text); }
 
 /* ── Tab: seperti kartu kecil yang naik saat aktif ────── */
 .stTabs [data-baseweb="tab-list"] { gap: .4rem; border-bottom: none; }
@@ -386,16 +195,12 @@ div[data-baseweb="popover"] [data-baseweb="calendar"] svg { fill: var(--sigap-te
     border-bottom: none;
     transition: transform .2s ease, box-shadow .2s ease, background .2s ease;
 }
-.stTabs [data-baseweb="tab"],
-.stTabs [data-baseweb="tab"] p { color: var(--sigap-muted); }
 .stTabs [data-baseweb="tab"]:hover { transform: translateY(-2px); }
 .stTabs [aria-selected="true"] {
     background: var(--sigap-surface-solid);
     box-shadow: var(--lift-2);
     transform: translateY(-3px);
 }
-.stTabs [aria-selected="true"] p { color: var(--sigap-accent-text); }
-.stTabs [data-baseweb="tab-border"] { background: var(--sigap-line); }
 
 /* ── Tombol: timbul, menekan saat diklik ─────────────── */
 .stButton > button, .stDownloadButton > button, .stLinkButton > a,
@@ -404,20 +209,7 @@ div[data-baseweb="popover"] [data-baseweb="calendar"] svg { fill: var(--sigap-te
     font-weight: 650;
     border: 1px solid rgba(59,123,255,.32);
     box-shadow: var(--lift-1);
-    transition: transform .16s ease, box-shadow .16s ease, background .16s ease;
-}
-.stApp [data-testid="stBaseButton-secondary"],
-.stApp [data-testid="stBaseButton-secondaryFormSubmit"],
-.stApp [data-testid="stBaseLinkButton-secondary"] {
-    background: var(--sigap-surface-solid) !important;
-    color: var(--sigap-text) !important;
-}
-.stApp [data-testid="stBaseButton-secondary"] p,
-.stApp [data-testid="stBaseLinkButton-secondary"] p { color: var(--sigap-text) !important; }
-.stApp [data-testid="stBaseButton-secondary"]:hover,
-.stApp [data-testid="stBaseLinkButton-secondary"]:hover {
-    background: var(--sigap-hover) !important;
-    border-color: var(--sigap-blue) !important;
+    transition: transform .16s ease, box-shadow .16s ease;
 }
 .stButton > button:hover, .stDownloadButton > button:hover, .stLinkButton > a:hover,
 .stFormSubmitButton > button:hover {
@@ -426,23 +218,19 @@ div[data-baseweb="popover"] [data-baseweb="calendar"] svg { fill: var(--sigap-te
 }
 .stButton > button:active, .stDownloadButton > button:active {
     transform: translateY(0);
-    box-shadow: inset 0 2px 5px rgba(15,23,42,.16);
+    box-shadow: inset 0 2px 5px var(--shadow-deep);
 }
-.stButton > button[kind="primary"],
-.stFormSubmitButton > button[kind="primaryFormSubmit"],
 .stApp [data-testid="stBaseButton-primary"],
 .stApp [data-testid="stBaseButton-primaryFormSubmit"] {
     background: linear-gradient(135deg, var(--sigap-blue), var(--sigap-cyan)) !important;
     border: none; color: #fff !important;
 }
-.stApp [data-testid="stBaseButton-primary"] p,
-.stApp [data-testid="stBaseButton-primaryFormSubmit"] p { color: #fff !important; }
 
 /* ── Sidebar ─────────────────────────────────────────── */
 section[data-testid="stSidebar"] {
-    background: var(--sigap-sidebar-bg);
+    background: linear-gradient(185deg, var(--sigap-side-1) 0%, var(--sigap-side-2) 100%);
     border-right: 1px solid var(--sigap-line);
-    box-shadow: var(--sidebar-shadow);
+    box-shadow: 6px 0 26px var(--shadow-soft);
 }
 section[data-testid="stSidebar"] > div { background: transparent; }
 
@@ -457,13 +245,11 @@ section[data-testid="stSidebar"] :is(h2, h3) {
 }
 
 /* ── Menu navigasi: daftar bersih tanpa bulatan radio ── */
-.st-key-navigasi [data-testid="stRadioGroup"] {
-    display: flex; flex-direction: column; gap: .15rem; width: 100%;
-}
 .st-key-navigasi > [data-testid="stElementContainer"],
 .st-key-navigasi [data-testid="stRadio"],
 .st-key-navigasi [data-testid="stRadioGroup"],
 .st-key-navigasi [data-testid="stRadioGroup"] > div { width: 100% !important; align-items: stretch; }
+.st-key-navigasi [data-testid="stRadioGroup"] { display: flex; flex-direction: column; gap: .15rem; }
 .st-key-navigasi [data-testid="stRadioOption"] {
     flex: 1 1 auto;
     width: 100%;
@@ -474,7 +260,7 @@ section[data-testid="stSidebar"] :is(h2, h3) {
     transition: background .15s ease;
 }
 .st-key-navigasi [data-testid="stRadioOption"] > div > div:not([data-testid]) { display: none !important; }
-.st-key-navigasi [data-testid="stRadioOption"] p { font-size: .95rem; color: var(--sigap-text); }
+.st-key-navigasi [data-testid="stRadioOption"] p { font-size: .95rem; }
 .st-key-navigasi [data-testid="stRadioOption"]:hover { background: var(--sigap-hover); }
 .st-key-navigasi [data-testid="stRadioOption"]:has(input:checked) {
     background: var(--sigap-nav-active);
@@ -500,61 +286,25 @@ div[data-testid="stPlotlyChart"] {
 }
 /* Di layar sempit, efek angkat dimatikan agar tidak mengganggu */
 @media (max-width: 640px) {
-    [data-testid="metric-container"]:hover,
     [data-testid="stMetric"]:hover { transform: none; }
     .block-container { padding: 1rem 1rem 2.5rem 1rem; }
 }
 </style>
 """
 
-# Lapisan mode gelap, hanya aktif bila perangkat memakai mode gelap.
-#  - Tabel interaktif (st.dataframe), daftar pilihan, dan kalender digambar oleh
-#    Streamlit dengan tema terang, jadi warnanya dibalik dengan filter.
-#  - Grafik Plotly digambar dengan warna untuk latar terang; teks, garis kisi,
-#    dan legendanya diwarnai ulang di sini (CSS bisa menimpa gaya bawaan SVG).
-CSS_GELAP_OTOMATIS = """
-<style>
-@media (prefers-color-scheme: dark) {
-:root { __TOKEN__ }
-
-div[data-testid="stDataFrame"] > div,
-[data-testid="stDateInputCalendar"],
-[data-testid="stTimeInputDropdown"],
-[data-testid$="Dropdown"] { filter: invert(.9) hue-rotate(180deg); }
-
-[data-testid="stPlotlyChart"] .main-svg :is(.xtick, .ytick, .colorbar, .cbaxis) text,
-[data-testid="stPlotlyChart"] .main-svg .bartext-outside {
-    fill: var(--sigap-muted) !important;
-}
-[data-testid="stPlotlyChart"] .main-svg :is(.g-xtitle, .g-ytitle, .g-gtitle) text,
-[data-testid="stPlotlyChart"] .main-svg :is(.gtitle, .legendtext, .legendtitletext, .cbtitle),
-[data-testid="stPlotlyChart"] .main-svg .cbtitle text {
-    fill: var(--sigap-text) !important;
-}
-[data-testid="stPlotlyChart"] .main-svg :is(.gridlayer, .zerolinelayer) path,
-[data-testid="stPlotlyChart"] .main-svg :is(.xlines-above, .ylines-above, .xlines-below, .ylines-below) {
-    stroke: rgba(148,163,184,.18) !important;
-}
-[data-testid="stPlotlyChart"] .modebar-btn path { fill: var(--sigap-muted) !important; }
-}
-</style>
-"""
-
 
 def inject_custom_css():
-    css = CSS_DASAR.replace("__TOKEN__", TOKEN_TERANG)
-    css += CSS_GELAP_OTOMATIS.replace("__TOKEN__", TOKEN_GELAP)
-    st.markdown(css, unsafe_allow_html=True)
+    st.markdown(CSS_TEMA, unsafe_allow_html=True)
 
 inject_custom_css()
 
 
 # ============================================================
-# GRAFIK — tampil rapi di mode terang maupun gelap
+# GRAFIK — warna mengikuti tema aktif
 # ============================================================
-# Satu palet untuk kedua mode: warna bernada sedang yang tetap jelas baik di
-# latar putih maupun biru gelap. Teks dan garis kisi digambar untuk latar
-# terang; di perangkat bermode gelap, CSS_GELAP_OTOMATIS mewarnainya ulang.
+# Satu palet kategori yang jelas di latar terang maupun gelap. Warna teks, garis
+# kisi, dan legenda diurus tema Streamlit (theme="streamlit"), sehingga ikut
+# berganti saat pengguna memilih Light/Dark di menu ⋮.
 
 PALET_SIGAP = ["#2f7bf5", "#14b8a6", "#f59e0b", "#ef4444", "#8b5cf6",
                "#22c55e", "#ec4899", "#06b6d4", "#f97316", "#64748b"]
@@ -566,31 +316,19 @@ pio.templates.default = "sigap"
 
 
 def tampil_grafik(fig, wadah=None, **kwargs):
-    """Pengganti st.plotly_chart dengan latar transparan dan warna yang serasi.
+    """Pengganti st.plotly_chart: latar transparan, warna mengikuti tema aktif.
 
     Figur asli tidak diubah (yang digambar adalah salinannya), sehingga figur
     yang sama tetap aman dipakai untuk keperluan lain seperti ekspor.
     """
     wadah = wadah or st
     fig = go.Figure(fig)
-    teks, redup, garis = "#1e293b", "#56637a", "rgba(148,163,184,.30)"
     fig.update_layout(
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(family='"Source Sans Pro", "Source Sans 3", sans-serif', color=teks),
-        title_font_color=teks,
-        legend=dict(font=dict(color=teks), bgcolor="rgba(0,0,0,0)"),
-        hoverlabel=dict(bgcolor="#ffffff", bordercolor=garis, font=dict(color=teks)),
-        modebar=dict(bgcolor="rgba(0,0,0,0)", color=redup, activecolor="#0f172a"),
+        legend_bgcolor="rgba(0,0,0,0)",
     )
-    fig.update_xaxes(gridcolor=garis, zerolinecolor=garis, linecolor=garis,
-                     tickfont_color=redup, title_font_color=teks)
-    fig.update_yaxes(gridcolor=garis, zerolinecolor=garis, linecolor=garis,
-                     tickfont_color=redup, title_font_color=teks)
-    if fig.layout.coloraxis.colorbar is not None:
-        fig.update_layout(coloraxis_colorbar=dict(
-            tickfont=dict(color=redup), title=dict(font=dict(color=teks))))
-    return wadah.plotly_chart(fig, theme=None, **kwargs)
+    return wadah.plotly_chart(fig, theme="streamlit", **kwargs)
 
 # ============================================================
 # HEADER
@@ -1625,7 +1363,7 @@ def page_ml_upgraded(df_filtered, filter_info):
     st.dataframe(
         eval_df.style.highlight_min(
             subset=["MAE","RMSE","MAPE"],
-            props="background-color:#d1fae5; color:#064e3b; font-weight:700;",
+            props="background-color: rgba(34,197,94,.22); font-weight: 700;",
         ),
         use_container_width=True,
         hide_index=True,
@@ -1994,7 +1732,13 @@ def page_peta_persebaran(df_filtered, filter_info):
         zoom=11.5, center={"lat":-7.218,"lon":111.675}, height=550,
         color_discrete_sequence=px.colors.qualitative.Plotly,
     )
-    fig.update_layout(map_style="carto-positron", margin={"r":0,"t":0,"l":0,"b":0})
+    # Peta dasar menyesuaikan tema aktif (terbaca saat halaman dijalankan ulang)
+    try:
+        _gelap = st.context.theme.type == "dark"
+    except Exception:
+        _gelap = False
+    fig.update_layout(map_style="carto-darkmatter" if _gelap else "carto-positron",
+                      margin={"r":0,"t":0,"l":0,"b":0})
     
     st.markdown("*(Klik salah satu titik/lingkaran pada peta untuk melihat detail data dari desa tersebut)*")
     

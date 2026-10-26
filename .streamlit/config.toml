@@ -1,6 +1,6 @@
 # Tema dasar dikunci ke "light". Warna mode terang/gelap sepenuhnya diatur oleh
-# CSS di sigap_bojonegoro.py (pemilih "Tampilan" di sidebar), sehingga tampilan
-# tidak lagi berubah-ubah mengikuti setelan mode gelap browser/HP pengguna.
+# CSS di sigap_bojonegoro.py dan otomatis mengikuti setelan perangkat pengguna
+# (prefers-color-scheme), sehingga tulisan tetap terbaca di mode apa pun.
 [theme]
 base = "light"
 primaryColor = "#1e5eff"

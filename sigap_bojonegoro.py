@@ -31,44 +31,14 @@ st.set_page_config(
 )
 
 # ============================================================
-# MODE TAMPILAN (TERANG / GELAP)
+# MODE TAMPILAN — OTOMATIS MENGIKUTI PERANGKAT
 # ============================================================
-# Semua warna teks, latar, dan isian ditentukan sendiri oleh CSS di bawah —
-# tidak lagi bergantung pada tema bawaan Streamlit. Sebelumnya, browser yang
-# memakai mode gelap membuat Streamlit menulis teks berwarna putih, padahal
-# latar aplikasi dipaksa terang, sehingga tulisan "hilang".
-TEMA_TERANG = "Terang"
-TEMA_GELAP  = "Gelap"
-
-# Pilihan diingat lewat URL (?tema=gelap), jadi tetap terpakai saat halaman
-# dimuat ulang atau tautannya dibagikan.
-if "tema_tampilan" not in st.session_state:
-    st.session_state["tema_tampilan"] = (
-        TEMA_GELAP if st.query_params.get("tema") == "gelap" else TEMA_TERANG
-    )
-
-with st.sidebar:
-    st.radio(
-        "Tampilan",
-        [TEMA_TERANG, TEMA_GELAP],
-        key="tema_tampilan",
-        horizontal=True,
-        help="Pilih mode terang atau gelap. Pilihan tersimpan di alamat halaman.",
-    )
-
-GELAP = st.session_state["tema_tampilan"] == TEMA_GELAP
-if GELAP:
-    st.query_params["tema"] = "gelap"
-elif "tema" in st.query_params:
-    del st.query_params["tema"]
-
-
-def _tema_bawaan_gelap() -> bool:
-    """True bila tema bawaan Streamlit (bukan pilihan di sidebar) sedang gelap."""
-    try:
-        return st.context.theme.type == "dark"
-    except Exception:
-        return False
+# Mode terang/gelap mengikuti setelan HP/laptop pengguna lewat media query CSS
+# `prefers-color-scheme`, tanpa tombol pilihan. Semua warna teks, latar, dan
+# isian ditentukan sendiri oleh CSS di bawah — tidak bergantung pada tema
+# bawaan Streamlit (dikunci "light" di .streamlit/config.toml). Sebelumnya,
+# perangkat bermode gelap membuat Streamlit menulis teks putih di atas latar
+# yang dipaksa terang, sehingga tulisan "hilang".
 
 
 # ── Token warna per mode ─────────────────────────────────────
@@ -537,35 +507,54 @@ div[data-testid="stPlotlyChart"] {
 </style>
 """
 
-# Tabel interaktif (st.dataframe) digambar di <canvas> memakai tema bawaan
-# Streamlit, jadi tidak bisa diwarnai lewat CSS biasa; begitu pula daftar pilihan
-# dan kalender yang muncul melayang. Bila tema bawaan dan mode pilihan pengguna
-# berbeda, warnanya dibalik supaya ikut gelap/terang.
-CSS_BALIK_TABEL = """
+# Lapisan mode gelap, hanya aktif bila perangkat memakai mode gelap.
+#  - Tabel interaktif (st.dataframe), daftar pilihan, dan kalender digambar oleh
+#    Streamlit dengan tema terang, jadi warnanya dibalik dengan filter.
+#  - Grafik Plotly digambar dengan warna untuk latar terang; teks, garis kisi,
+#    dan legendanya diwarnai ulang di sini (CSS bisa menimpa gaya bawaan SVG).
+CSS_GELAP_OTOMATIS = """
 <style>
+@media (prefers-color-scheme: dark) {
+:root { __TOKEN__ }
+
 div[data-testid="stDataFrame"] > div,
 [data-testid="stDateInputCalendar"],
 [data-testid="stTimeInputDropdown"],
 [data-testid$="Dropdown"] { filter: invert(.9) hue-rotate(180deg); }
+
+[data-testid="stPlotlyChart"] .main-svg :is(.xtick, .ytick, .colorbar, .cbaxis) text,
+[data-testid="stPlotlyChart"] .main-svg .bartext-outside {
+    fill: var(--sigap-muted) !important;
+}
+[data-testid="stPlotlyChart"] .main-svg :is(.g-xtitle, .g-ytitle, .g-gtitle) text,
+[data-testid="stPlotlyChart"] .main-svg :is(.gtitle, .legendtext, .legendtitletext, .cbtitle),
+[data-testid="stPlotlyChart"] .main-svg .cbtitle text {
+    fill: var(--sigap-text) !important;
+}
+[data-testid="stPlotlyChart"] .main-svg :is(.gridlayer, .zerolinelayer) path,
+[data-testid="stPlotlyChart"] .main-svg :is(.xlines-above, .ylines-above, .xlines-below, .ylines-below) {
+    stroke: rgba(148,163,184,.18) !important;
+}
+[data-testid="stPlotlyChart"] .modebar-btn path { fill: var(--sigap-muted) !important; }
+}
 </style>
 """
 
 
 def inject_custom_css():
-    css = CSS_DASAR.replace("__TOKEN__", TOKEN_GELAP if GELAP else TOKEN_TERANG)
-    if GELAP != _tema_bawaan_gelap():
-        css += CSS_BALIK_TABEL
+    css = CSS_DASAR.replace("__TOKEN__", TOKEN_TERANG)
+    css += CSS_GELAP_OTOMATIS.replace("__TOKEN__", TOKEN_GELAP)
     st.markdown(css, unsafe_allow_html=True)
 
 inject_custom_css()
 
 
 # ============================================================
-# GRAFIK — warna mengikuti mode tampilan
+# GRAFIK — tampil rapi di mode terang maupun gelap
 # ============================================================
 # Satu palet untuk kedua mode: warna bernada sedang yang tetap jelas baik di
-# latar putih maupun biru gelap. Templat ini berlaku untuk semua pengguna,
-# sedangkan latar, teks, dan garis kisi diatur per mode di tampil_grafik().
+# latar putih maupun biru gelap. Teks dan garis kisi digambar untuk latar
+# terang; di perangkat bermode gelap, CSS_GELAP_OTOMATIS mewarnainya ulang.
 
 PALET_SIGAP = ["#2f7bf5", "#14b8a6", "#f59e0b", "#ef4444", "#8b5cf6",
                "#22c55e", "#ec4899", "#06b6d4", "#f97316", "#64748b"]
@@ -577,29 +566,22 @@ pio.templates.default = "sigap"
 
 
 def tampil_grafik(fig, wadah=None, **kwargs):
-    """Pengganti st.plotly_chart yang menyesuaikan warna grafik dengan mode.
+    """Pengganti st.plotly_chart dengan latar transparan dan warna yang serasi.
 
     Figur asli tidak diubah (yang digambar adalah salinannya), sehingga figur
     yang sama tetap aman dipakai untuk keperluan lain seperti ekspor.
     """
     wadah = wadah or st
     fig = go.Figure(fig)
-    teks  = "#d6deeb" if GELAP else "#1e293b"
-    redup = "#9aa8bf" if GELAP else "#56637a"
-    garis = "rgba(148,163,184,.18)" if GELAP else "rgba(148,163,184,.30)"
+    teks, redup, garis = "#1e293b", "#56637a", "rgba(148,163,184,.30)"
     fig.update_layout(
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         font=dict(family='"Source Sans Pro", "Source Sans 3", sans-serif', color=teks),
         title_font_color=teks,
         legend=dict(font=dict(color=teks), bgcolor="rgba(0,0,0,0)"),
-        hoverlabel=dict(
-            bgcolor="#172138" if GELAP else "#ffffff",
-            bordercolor=garis,
-            font=dict(color=teks),
-        ),
-        modebar=dict(bgcolor="rgba(0,0,0,0)", color=redup,
-                     activecolor="#eef3fb" if GELAP else "#0f172a"),
+        hoverlabel=dict(bgcolor="#ffffff", bordercolor=garis, font=dict(color=teks)),
+        modebar=dict(bgcolor="rgba(0,0,0,0)", color=redup, activecolor="#0f172a"),
     )
     fig.update_xaxes(gridcolor=garis, zerolinecolor=garis, linecolor=garis,
                      tickfont_color=redup, title_font_color=teks)
@@ -608,10 +590,6 @@ def tampil_grafik(fig, wadah=None, **kwargs):
     if fig.layout.coloraxis.colorbar is not None:
         fig.update_layout(coloraxis_colorbar=dict(
             tickfont=dict(color=redup), title=dict(font=dict(color=teks))))
-    # Peta: ganti ke basemap gelap/terang yang sepadan
-    gaya_peta = getattr(getattr(fig.layout, "map", None), "style", None)
-    if gaya_peta in ("carto-positron", "carto-darkmatter"):
-        fig.update_layout(map_style="carto-darkmatter" if GELAP else "carto-positron")
     return wadah.plotly_chart(fig, theme=None, **kwargs)
 
 # ============================================================
@@ -1661,11 +1639,10 @@ def page_ml_upgraded(df_filtered, filter_info):
     fig.add_trace(go.Scatter(
         x=weekly["ds"], y=weekly["y"],
         mode="lines+markers", name="Aktual",
-        line=dict(color="#60a5fa" if GELAP else "#1d4ed8", width=2),
+        line=dict(color="#2f7bf5", width=2),
     ))
 
-    colors = ({"Prophet": "#f87171", "XGBoost": "#4ade80", "SARIMA": "#fbbf24"} if GELAP
-              else {"Prophet": "#ef4444", "XGBoost": "#16a34a", "SARIMA": "#d97706"})
+    colors = {"Prophet": "#ef4444", "XGBoost": "#22c55e", "SARIMA": "#f59e0b"}
     for name, r in results.items():
         fc = r["fc"]
         fc_future = fc[fc["ds"] > last_date_ts]
@@ -1683,7 +1660,7 @@ def page_ml_upgraded(df_filtered, filter_info):
             fig.add_trace(go.Scatter(
                 x=ens_future["ds"], y=ens_future["yhat_ensemble"].clip(lower=0),
                 mode="lines+markers", name="Ensemble",
-                line=dict(color="#a78bfa" if GELAP else "#7c3aed", width=3),
+                line=dict(color="#8b5cf6", width=3),
             ))
 
     # Best model confidence interval (Prophet saja yang punya CI lengkap)

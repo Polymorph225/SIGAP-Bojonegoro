@@ -8,6 +8,7 @@ import io
 import warnings
 import plotly.express as px
 import plotly.graph_objects as go
+import plotly.io as pio
 from datetime import datetime, date
 import concurrent.futures
 
@@ -30,192 +31,547 @@ st.set_page_config(
 )
 
 # ============================================================
-# TEMA / CSS
+# MODE TAMPILAN (TERANG / GELAP)
 # ============================================================
-def inject_custom_css():
-    st.markdown("""
-    <style>
-    /* ── Palet & token kedalaman ──────────────────────────── */
-    :root {
-        --sigap-blue:      #1e5eff;
-        --sigap-blue-deep: #1039a8;
-        --sigap-cyan:      #06b6d4;
-        --sigap-ink:       #0f172a;
-        --sigap-muted:     #56637a;
-        --sigap-line:      rgba(148,163,184,.30);
-        --sigap-surface:   rgba(255,255,255,.74);
+# Semua warna teks, latar, dan isian ditentukan sendiri oleh CSS di bawah —
+# tidak lagi bergantung pada tema bawaan Streamlit. Sebelumnya, browser yang
+# memakai mode gelap membuat Streamlit menulis teks berwarna putih, padahal
+# latar aplikasi dipaksa terang, sehingga tulisan "hilang".
+TEMA_TERANG = "☀️ Terang"
+TEMA_GELAP  = "🌙 Gelap"
 
-        /* bayangan berlapis: dekat + jauh, supaya terasa mengambang */
-        --lift-1: 0 1px 2px rgba(15,23,42,.05), 0 2px 6px rgba(15,23,42,.06);
-        --lift-2: 0 2px 4px rgba(15,23,42,.04), 0 10px 24px rgba(30,94,255,.12);
-        --lift-3: 0 12px 28px rgba(30,94,255,.18), 0 28px 56px rgba(15,23,42,.12);
-    }
+# Pilihan diingat lewat URL (?tema=gelap), jadi tetap terpakai saat halaman
+# dimuat ulang atau tautannya dibagikan.
+if "tema_tampilan" not in st.session_state:
+    st.session_state["tema_tampilan"] = (
+        TEMA_GELAP if st.query_params.get("tema") == "gelap" else TEMA_TERANG
+    )
 
-    /* ── Latar: gradien lembut + noda cahaya ──────────────── */
-    .stApp {
-        background:
-            radial-gradient(900px 520px at 12% -8%,  rgba(30,94,255,.13), transparent 60%),
-            radial-gradient(760px 460px at 92% 4%,   rgba(6,182,212,.12), transparent 62%),
-            linear-gradient(180deg, #f5f8ff 0%, #eef3fb 46%, #f7f9fc 100%);
-        background-attachment: fixed;
-    }
-    .block-container { padding: 1.25rem 2rem 3.5rem 2rem; max-width: 1500px; }
+with st.sidebar:
+    st.radio(
+        "🎨 Tampilan",
+        [TEMA_TERANG, TEMA_GELAP],
+        key="tema_tampilan",
+        horizontal=True,
+        help="Pilih mode terang atau gelap. Pilihan tersimpan di alamat halaman.",
+    )
 
-    h1, h2, h3 { color: var(--sigap-ink); letter-spacing: -.015em; }
-    h1 { font-weight: 800 !important; }
-    h2, h3 { font-weight: 700 !important; }
+GELAP = st.session_state["tema_tampilan"] == TEMA_GELAP
+if GELAP:
+    st.query_params["tema"] = "gelap"
+elif "tema" in st.query_params:
+    del st.query_params["tema"]
 
-    /* ── Kartu metrik: kaca + terangkat + miring saat disentuh ── */
-    [data-testid="metric-container"],
-    [data-testid="stMetric"] {
-        position: relative;
-        padding: 1rem 1.15rem;
-        border-radius: 16px;
-        background: var(--sigap-surface);
-        backdrop-filter: blur(14px) saturate(150%);
-        -webkit-backdrop-filter: blur(14px) saturate(150%);
-        border: 1px solid var(--sigap-line);
-        box-shadow: var(--lift-2);
-        transform-style: preserve-3d;
-        transition: transform .28s cubic-bezier(.22,1,.36,1), box-shadow .28s ease;
-    }
-    /* garis cahaya tipis di tepi atas — memberi kesan permukaan miring kena cahaya */
-    [data-testid="metric-container"]::before,
-    [data-testid="stMetric"]::before {
-        content: "";
-        position: absolute; inset: 0;
-        border-radius: inherit;
-        padding: 1px;
-        background: linear-gradient(160deg, rgba(255,255,255,.95), rgba(255,255,255,0) 42%);
-        -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-        -webkit-mask-composite: xor; mask-composite: exclude;
-        pointer-events: none;
-    }
+
+def _tema_bawaan_gelap() -> bool:
+    """True bila tema bawaan Streamlit (bukan pilihan di sidebar) sedang gelap."""
+    try:
+        return st.context.theme.type == "dark"
+    except Exception:
+        return False
+
+
+# ── Token warna per mode ─────────────────────────────────────
+TOKEN_TERANG = """
+    --sigap-blue:        #1e5eff;
+    --sigap-blue-deep:   #1039a8;
+    --sigap-cyan:        #06b6d4;
+    --sigap-ink:         #0f172a;
+    --sigap-text:        #1e293b;
+    --sigap-muted:       #56637a;
+    --sigap-accent-text: #1039a8;
+    --sigap-line:        rgba(148,163,184,.30);
+    --sigap-line-strong: rgba(100,116,139,.38);
+    --sigap-surface:     rgba(255,255,255,.74);
+    --sigap-surface-solid: #ffffff;
+    --sigap-tab:         rgba(255,255,255,.55);
+    --sigap-input:       #ffffff;
+    --sigap-hover:       #eef3ff;
+    --sigap-code-bg:     rgba(15,23,42,.06);
+    --sigap-code-text:   #0b6b3a;
+    --sigap-table-head:  rgba(30,94,255,.06);
+    --sigap-chart-bg:    rgba(255,255,255,.66);
+    --sigap-header-bg:   rgba(245,248,255,.72);
+    --sigap-metric-a:    #1039a8;
+    --sigap-metric-b:    #06b6d4;
+    --sigap-sheen:       rgba(255,255,255,.95);
+    --sigap-app-bg:
+        radial-gradient(900px 520px at 12% -8%,  rgba(30,94,255,.13), transparent 60%),
+        radial-gradient(760px 460px at 92% 4%,   rgba(6,182,212,.12), transparent 62%),
+        linear-gradient(180deg, #f5f8ff 0%, #eef3fb 46%, #f7f9fc 100%);
+    --sigap-sidebar-bg:  linear-gradient(185deg, #ffffff 0%, #f3f7ff 100%);
+
+    --sigap-info-bg:     rgba(28,131,225,.10);  --sigap-info-text:    #0b4a8b;
+    --sigap-success-bg:  rgba(33,195,84,.11);   --sigap-success-text: #11622f;
+    --sigap-warning-bg:  rgba(255,189,69,.20);  --sigap-warning-text: #7a4800;
+    --sigap-error-bg:    rgba(255,43,43,.09);   --sigap-error-text:   #8f1d1d;
+
+    --badge-prophet-bg: linear-gradient(145deg,#e6efff,#cfe0ff); --badge-prophet-fg: #1746b8;
+    --badge-xgb-bg:     linear-gradient(145deg,#e4fbec,#c9f3da); --badge-xgb-fg:     #12693c;
+    --badge-sarima-bg:  linear-gradient(145deg,#fff5da,#ffe9b4); --badge-sarima-fg:  #8a5a06;
+    --badge-ens-bg:     linear-gradient(145deg,#f4e9ff,#e7d6ff); --badge-ens-fg:     #6320a8;
+    --badge-win-bg:     linear-gradient(145deg,#ffe3e3,#ffc9c9); --badge-win-fg:     #a11a1a;
+
+    --lift-1: 0 1px 2px rgba(15,23,42,.05), 0 2px 6px rgba(15,23,42,.06);
+    --lift-2: 0 2px 4px rgba(15,23,42,.04), 0 10px 24px rgba(30,94,255,.12);
+    --lift-3: 0 12px 28px rgba(30,94,255,.18), 0 28px 56px rgba(15,23,42,.12);
+    --sidebar-shadow: 6px 0 26px rgba(15,23,42,.06);
+    color-scheme: light;
+"""
+
+TOKEN_GELAP = """
+    --sigap-blue:        #3b7bff;
+    --sigap-blue-deep:   #1e5eff;
+    --sigap-cyan:        #22d3ee;
+    --sigap-ink:         #eef3fb;
+    --sigap-text:        #d6deeb;
+    --sigap-muted:       #9aa8bf;
+    --sigap-accent-text: #a9c6ff;
+    --sigap-line:        rgba(148,163,184,.20);
+    --sigap-line-strong: rgba(148,163,184,.34);
+    --sigap-surface:     rgba(23,33,56,.78);
+    --sigap-surface-solid: #172138;
+    --sigap-tab:         rgba(23,33,56,.55);
+    --sigap-input:       #111a2e;
+    --sigap-hover:       #22304f;
+    --sigap-code-bg:     rgba(148,163,184,.14);
+    --sigap-code-text:   #86efac;
+    --sigap-table-head:  rgba(59,123,255,.12);
+    --sigap-chart-bg:    rgba(20,30,52,.72);
+    --sigap-header-bg:   rgba(10,16,30,.72);
+    --sigap-metric-a:    #8fb4ff;
+    --sigap-metric-b:    #5eead4;
+    --sigap-sheen:       rgba(255,255,255,.16);
+    --sigap-app-bg:
+        radial-gradient(900px 520px at 12% -8%,  rgba(30,94,255,.20), transparent 60%),
+        radial-gradient(760px 460px at 92% 4%,   rgba(6,182,212,.13), transparent 62%),
+        linear-gradient(180deg, #0b1222 0%, #0d1528 46%, #0a1020 100%);
+    --sigap-sidebar-bg:  linear-gradient(185deg, #111a2e 0%, #0c1426 100%);
+
+    --sigap-info-bg:     rgba(59,130,246,.16);  --sigap-info-text:    #c7dcff;
+    --sigap-success-bg:  rgba(34,197,94,.15);   --sigap-success-text: #bbf7d0;
+    --sigap-warning-bg:  rgba(250,204,21,.13);  --sigap-warning-text: #fde68a;
+    --sigap-error-bg:    rgba(248,113,113,.15); --sigap-error-text:   #fecaca;
+
+    --badge-prophet-bg: rgba(59,130,246,.22);  --badge-prophet-fg: #bfd5ff;
+    --badge-xgb-bg:     rgba(34,197,94,.20);   --badge-xgb-fg:     #b4f2cb;
+    --badge-sarima-bg:  rgba(245,158,11,.20);  --badge-sarima-fg:  #fcd9a0;
+    --badge-ens-bg:     rgba(168,85,247,.22);  --badge-ens-fg:     #e3cdff;
+    --badge-win-bg:     rgba(239,68,68,.22);   --badge-win-fg:     #ffc9c9;
+
+    --lift-1: 0 1px 2px rgba(0,0,0,.30), 0 2px 6px rgba(0,0,0,.26);
+    --lift-2: 0 2px 4px rgba(0,0,0,.28), 0 10px 24px rgba(0,0,0,.34);
+    --lift-3: 0 12px 28px rgba(0,0,0,.42), 0 28px 56px rgba(30,94,255,.14);
+    --sidebar-shadow: 6px 0 26px rgba(0,0,0,.35);
+    color-scheme: dark;
+"""
+
+CSS_DASAR = """
+<style>
+:root { __TOKEN__ }
+
+/* ── Latar & teks dasar ───────────────────────────────── */
+.stApp {
+    background: var(--sigap-app-bg);
+    background-attachment: fixed;
+    color: var(--sigap-text);
+}
+.block-container { padding: 1.25rem 2rem 3.5rem 2rem; max-width: 1500px; }
+
+header[data-testid="stHeader"] {
+    background: var(--sigap-header-bg);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+}
+header[data-testid="stHeader"] button,
+header[data-testid="stHeader"] a,
+[data-testid="stSidebarCollapseButton"] button,
+[data-testid="stExpandSidebarButton"] { color: var(--sigap-muted) !important; }
+
+.stApp h1, .stApp h2, .stApp h3, .stApp h4, .stApp h5, .stApp h6,
+.stApp [data-testid="stHeading"] * {
+    color: var(--sigap-ink);
+    letter-spacing: -.015em;
+}
+.stApp h1 { font-weight: 800 !important; }
+.stApp h2, .stApp h3 { font-weight: 700 !important; }
+
+.stApp [data-testid="stMarkdownContainer"],
+.stApp [data-testid="stMarkdownContainer"] :is(p, li, td, th, strong, b, em, blockquote),
+.stApp [data-testid="stText"],
+.stApp [data-testid="stWidgetLabel"],
+.stApp [data-testid="stWidgetLabel"] p,
+.stApp [data-testid="stExpander"] summary,
+.stApp [data-testid="stExpander"] summary p,
+.stApp [data-testid="stRadioOption"] p,
+.stApp [data-testid="stCheckbox"] p,
+.stApp [data-testid="stFileChipName"],
+.stApp [data-testid="stJson"] {
+    color: var(--sigap-text);
+}
+.stApp [data-testid="stCaptionContainer"],
+.stApp [data-testid="stCaptionContainer"] p,
+.stApp [data-testid="stMetricLabel"],
+.stApp [data-testid="stMetricLabel"] p,
+.stApp [data-testid="stSliderTickBar"],
+.stApp [data-testid="stTooltipIcon"] svg,
+.stApp small { color: var(--sigap-muted) !important; }
+
+.stApp a:not([data-testid^="stBaseLinkButton"]) { color: var(--sigap-accent-text); }
+.stApp code {
+    background: var(--sigap-code-bg);
+    color: var(--sigap-code-text);
+}
+.stApp [data-testid="stMarkdownContainer"] blockquote {
+    border-left-color: var(--sigap-line-strong);
+}
+.stApp [data-testid="stMarkdownContainer"] table { border-color: var(--sigap-line); }
+.stApp [data-testid="stMarkdownContainer"] :is(th, td) { border-color: var(--sigap-line) !important; }
+.stApp [data-testid="stMarkdownContainer"] th { background: var(--sigap-table-head); }
+.stApp hr { border-color: var(--sigap-line) !important; background: var(--sigap-line); }
+
+/* ── Kartu metrik: kaca + terangkat + miring saat disentuh ── */
+[data-testid="metric-container"],
+[data-testid="stMetric"] {
+    position: relative;
+    padding: 1rem 1.15rem;
+    border-radius: 16px;
+    background: var(--sigap-surface);
+    backdrop-filter: blur(14px) saturate(150%);
+    -webkit-backdrop-filter: blur(14px) saturate(150%);
+    border: 1px solid var(--sigap-line);
+    box-shadow: var(--lift-2);
+    transform-style: preserve-3d;
+    transition: transform .28s cubic-bezier(.22,1,.36,1), box-shadow .28s ease;
+}
+/* garis cahaya tipis di tepi atas — kesan permukaan kena cahaya */
+[data-testid="metric-container"]::before,
+[data-testid="stMetric"]::before {
+    content: "";
+    position: absolute; inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(160deg, var(--sigap-sheen), rgba(255,255,255,0) 42%);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor; mask-composite: exclude;
+    pointer-events: none;
+}
+[data-testid="metric-container"]:hover,
+[data-testid="stMetric"]:hover {
+    transform: perspective(900px) translateY(-4px) rotateX(4deg);
+    box-shadow: var(--lift-3);
+}
+[data-testid="stMetricValue"],
+[data-testid="stMetricValue"] * {
+    font-weight: 800;
+    background: linear-gradient(120deg, var(--sigap-metric-a), var(--sigap-metric-b));
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+/* ── Badge model ──────────────────────────────────────── */
+.model-badge {
+    display: inline-block;
+    padding: .26rem .8rem;
+    border-radius: 999px;
+    font-size: .78rem;
+    font-weight: 700;
+    margin-right: .4rem;
+    box-shadow: var(--lift-1);
+    border: 1px solid var(--sigap-line);
+}
+.badge-prophet  { background: var(--badge-prophet-bg); color: var(--badge-prophet-fg) !important; }
+.badge-xgb      { background: var(--badge-xgb-bg);     color: var(--badge-xgb-fg) !important; }
+.badge-sarima   { background: var(--badge-sarima-bg);  color: var(--badge-sarima-fg) !important; }
+.badge-ensemble { background: var(--badge-ens-bg);     color: var(--badge-ens-fg) !important; }
+.badge-winner   { background: var(--badge-win-bg);     color: var(--badge-win-fg) !important; }
+
+/* ── Kotak akurasi & info ─────────────────────────────── */
+.accuracy-box {
+    padding: 1.05rem 1.2rem;
+    border-radius: 14px;
+    background: linear-gradient(150deg, rgba(30,94,255,.12), rgba(6,182,212,.08));
+    border: 1px solid rgba(59,123,255,.28);
+    box-shadow: var(--lift-1);
+    margin-bottom: 1rem;
+}
+.highlight-estimasi, .highlight-estimasi * {
+    color: var(--sigap-accent-text) !important;
+}
+.highlight-estimasi { font-size: 1.06rem; font-weight: 800; line-height: 1.6; }
+
+/* ── Kotak peringatan (info / sukses / waspada / galat) ── */
+[data-testid="stAlertContainer"]:has([data-testid="stAlertContentInfo"])    { background: var(--sigap-info-bg) !important; }
+[data-testid="stAlertContainer"]:has([data-testid="stAlertContentSuccess"]) { background: var(--sigap-success-bg) !important; }
+[data-testid="stAlertContainer"]:has([data-testid="stAlertContentWarning"]) { background: var(--sigap-warning-bg) !important; }
+[data-testid="stAlertContainer"]:has([data-testid="stAlertContentError"])   { background: var(--sigap-error-bg) !important; }
+[data-testid="stAlertContentInfo"]    { --sigap-text: var(--sigap-info-text);    color: var(--sigap-info-text) !important; }
+[data-testid="stAlertContentSuccess"] { --sigap-text: var(--sigap-success-text); color: var(--sigap-success-text) !important; }
+[data-testid="stAlertContentWarning"] { --sigap-text: var(--sigap-warning-text); color: var(--sigap-warning-text) !important; }
+[data-testid="stAlertContentError"]   { --sigap-text: var(--sigap-error-text);   color: var(--sigap-error-text) !important; }
+
+/* ── Panel bawaan Streamlit ───────────────────────────── */
+div[data-testid="stExpander"],
+div[data-testid="stAlert"],
+div[data-testid="stDataFrame"],
+div[data-testid="stTable"] {
+    border-radius: 14px !important;
+    border: 1px solid var(--sigap-line) !important;
+    box-shadow: var(--lift-1);
+    overflow: hidden;
+}
+div[data-testid="stExpander"] { background: var(--sigap-surface); }
+div[data-testid="stExpander"] details { border: none !important; }
+div[data-testid="stExpander"] summary { background: transparent !important; }
+div[data-testid="stExpander"] summary:hover { background: var(--sigap-hover) !important; }
+.stApp [data-testid="stFileChip"] { background: var(--sigap-hover) !important; }
+.stApp [data-testid="stRadio"] input[type="radio"]:not(:checked) + div { background: var(--sigap-line-strong) !important; }
+.stApp [data-testid="stRadio"] input[type="radio"]:not(:checked) + div > div { background: var(--sigap-input) !important; }
+.stApp [data-testid="stCheckbox"] input[type="checkbox"]:not(:checked) + div { background: var(--sigap-input) !important; border-color: var(--sigap-line-strong) !important; }
+div[data-testid="stExpander"] summary svg { color: var(--sigap-muted); }
+[data-testid="stForm"] { border-color: var(--sigap-line) !important; background: var(--sigap-surface); }
+[data-testid="stChatMessage"] {
+    background: var(--sigap-surface);
+    border: 1px solid var(--sigap-line);
+    border-radius: 14px;
+}
+[data-testid="stElementToolbar"] { background: var(--sigap-surface-solid); border-radius: 8px; }
+[data-testid="stElementToolbar"] button { color: var(--sigap-muted) !important; }
+
+/* ── Isian: teks, pilihan, tanggal, angka, unggah ─────── */
+.stApp [data-baseweb="input"],
+.stApp [data-baseweb="base-input"],
+.stApp [data-baseweb="textarea"],
+.stApp [data-baseweb="select"] > div,
+.stApp [data-testid="stDateInputField"],
+.stApp :is([data-testid="stMultiSelect"], [data-testid="stSelectbox"]) > div:not([data-testid]) > div:first-child,
+.stApp [data-testid="stTimeInput"] div:has(> input),
+.stApp :is([data-testid="stMultiSelect"], [data-testid="stSelectbox"],
+           [data-testid="stTextInput"], [data-testid="stNumberInput"],
+           [data-testid="stTextArea"], [data-testid="stChatInput"]) div:has(> :is(input, textarea)),
+.stApp [data-testid="stFileUploaderDropzone"] {
+    background-color: var(--sigap-input) !important;
+    border-color: var(--sigap-line-strong) !important;
+}
+.stApp [data-baseweb="input"] input,
+.stApp [data-baseweb="base-input"] input,
+.stApp [data-baseweb="textarea"] textarea,
+.stApp [data-baseweb="select"] input,
+.stApp [data-baseweb="select"] [class*="singleValue"],
+.stApp [data-baseweb="select"] div[value],
+.stApp :is([data-testid="stDateInput"], [data-testid="stMultiSelect"], [data-testid="stSelectbox"],
+           [data-testid="stTextInput"], [data-testid="stNumberInput"], [data-testid="stTimeInput"],
+           [data-testid="stTextArea"], [data-testid="stChatInput"]) :is(input, textarea),
+.stApp [data-testid="stDateInputField"] span {
+    color: var(--sigap-text) !important;
+    -webkit-text-fill-color: var(--sigap-text) !important;
+    caret-color: var(--sigap-text);
+    background-color: transparent !important;
+}
+.stApp [data-baseweb="select"] > div > div:first-child { color: var(--sigap-text); }
+.stApp input::placeholder, .stApp textarea::placeholder {
+    color: var(--sigap-muted) !important;
+    -webkit-text-fill-color: var(--sigap-muted) !important;
+    opacity: 1;
+}
+.stApp [data-baseweb="select"] svg,
+.stApp [data-baseweb="input"] svg,
+.stApp :is([data-testid="stDateInput"], [data-testid="stMultiSelect"],
+           [data-testid="stSelectbox"]) svg { color: var(--sigap-muted); }
+.stApp [data-testid="stFileUploaderDropzone"] { border-style: dashed !important; }
+.stApp [data-testid="stFileUploaderDropzone"] * { color: var(--sigap-text); }
+.stApp [data-testid="stFileUploaderDropzone"] small,
+.stApp [data-testid="stFileUploaderDropzone"] span + small { color: var(--sigap-muted) !important; }
+.stApp [data-testid="stFileUploaderDropzone"] button { color: var(--sigap-text) !important; }
+.stApp [data-testid="stNumberInput"] button { background: var(--sigap-input); color: var(--sigap-text); }
+
+/* Daftar pilihan & kalender muncul di luar .stApp (lapisan "popover") */
+div[data-baseweb="popover"] > div,
+div[data-baseweb="popover"] ul,
+div[data-baseweb="popover"] [data-baseweb="calendar"],
+div[data-baseweb="popover"] [data-baseweb="calendar"] > div {
+    background-color: var(--sigap-surface-solid) !important;
+    color: var(--sigap-text) !important;
+}
+div[data-baseweb="popover"] li,
+div[data-baseweb="popover"] li * { color: var(--sigap-text) !important; }
+div[data-baseweb="popover"] li:hover,
+div[data-baseweb="popover"] li[aria-selected="true"] { background-color: var(--sigap-hover) !important; }
+div[data-baseweb="popover"] [data-baseweb="calendar"] [role="gridcell"],
+div[data-baseweb="popover"] [data-baseweb="calendar"] [role="gridcell"] *,
+div[data-baseweb="popover"] [data-baseweb="calendar"] [role="presentation"],
+div[data-baseweb="popover"] [data-baseweb="calendar"] button,
+div[data-baseweb="popover"] [data-baseweb="calendar"] div { color: var(--sigap-text); }
+div[data-baseweb="popover"] [data-baseweb="calendar"] svg { fill: var(--sigap-text); color: var(--sigap-text); }
+
+/* ── Tab: seperti kartu kecil yang naik saat aktif ────── */
+.stTabs [data-baseweb="tab-list"] { gap: .4rem; border-bottom: none; }
+.stTabs [data-baseweb="tab"] {
+    border-radius: 12px 12px 0 0;
+    padding: .55rem 1.05rem;
+    background: var(--sigap-tab);
+    border: 1px solid var(--sigap-line);
+    border-bottom: none;
+    transition: transform .2s ease, box-shadow .2s ease, background .2s ease;
+}
+.stTabs [data-baseweb="tab"],
+.stTabs [data-baseweb="tab"] p { color: var(--sigap-muted); }
+.stTabs [data-baseweb="tab"]:hover { transform: translateY(-2px); }
+.stTabs [aria-selected="true"] {
+    background: var(--sigap-surface-solid);
+    box-shadow: var(--lift-2);
+    transform: translateY(-3px);
+}
+.stTabs [aria-selected="true"] p { color: var(--sigap-accent-text); }
+.stTabs [data-baseweb="tab-border"] { background: var(--sigap-line); }
+
+/* ── Tombol: timbul, menekan saat diklik ─────────────── */
+.stButton > button, .stDownloadButton > button, .stLinkButton > a,
+.stFormSubmitButton > button {
+    border-radius: 12px;
+    font-weight: 650;
+    border: 1px solid rgba(59,123,255,.32);
+    box-shadow: var(--lift-1);
+    transition: transform .16s ease, box-shadow .16s ease, background .16s ease;
+}
+.stApp [data-testid="stBaseButton-secondary"],
+.stApp [data-testid="stBaseButton-secondaryFormSubmit"],
+.stApp [data-testid="stBaseLinkButton-secondary"] {
+    background: var(--sigap-surface-solid) !important;
+    color: var(--sigap-text) !important;
+}
+.stApp [data-testid="stBaseButton-secondary"] p,
+.stApp [data-testid="stBaseLinkButton-secondary"] p { color: var(--sigap-text) !important; }
+.stApp [data-testid="stBaseButton-secondary"]:hover,
+.stApp [data-testid="stBaseLinkButton-secondary"]:hover {
+    background: var(--sigap-hover) !important;
+    border-color: var(--sigap-blue) !important;
+}
+.stButton > button:hover, .stDownloadButton > button:hover, .stLinkButton > a:hover,
+.stFormSubmitButton > button:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--lift-2);
+}
+.stButton > button:active, .stDownloadButton > button:active {
+    transform: translateY(0);
+    box-shadow: inset 0 2px 5px rgba(15,23,42,.16);
+}
+.stButton > button[kind="primary"],
+.stFormSubmitButton > button[kind="primaryFormSubmit"],
+.stApp [data-testid="stBaseButton-primary"],
+.stApp [data-testid="stBaseButton-primaryFormSubmit"] {
+    background: linear-gradient(135deg, var(--sigap-blue), var(--sigap-cyan)) !important;
+    border: none; color: #fff !important;
+}
+.stApp [data-testid="stBaseButton-primary"] p,
+.stApp [data-testid="stBaseButton-primaryFormSubmit"] p { color: #fff !important; }
+
+/* ── Sidebar ─────────────────────────────────────────── */
+section[data-testid="stSidebar"] {
+    background: var(--sigap-sidebar-bg);
+    border-right: 1px solid var(--sigap-line);
+    box-shadow: var(--sidebar-shadow);
+}
+section[data-testid="stSidebar"] > div { background: transparent; }
+
+/* ── Grafik Plotly ikut mengambang ───────────────────── */
+div[data-testid="stPlotlyChart"] {
+    border-radius: 16px;
+    background: var(--sigap-chart-bg);
+    border: 1px solid var(--sigap-line);
+    box-shadow: var(--lift-2);
+    padding: .35rem;
+}
+
+/* Hormati pengguna yang mematikan animasi di sistemnya */
+@media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+}
+/* Di layar sempit, efek angkat dimatikan agar tidak mengganggu */
+@media (max-width: 640px) {
     [data-testid="metric-container"]:hover,
-    [data-testid="stMetric"]:hover {
-        transform: perspective(900px) translateY(-4px) rotateX(4deg);
-        box-shadow: var(--lift-3);
-    }
-    [data-testid="stMetricValue"] {
-        font-weight: 800;
-        background: linear-gradient(120deg, var(--sigap-blue-deep), var(--sigap-cyan));
-        -webkit-background-clip: text; background-clip: text;
-        -webkit-text-fill-color: transparent;
-    }
+    [data-testid="stMetric"]:hover { transform: none; }
+    .block-container { padding: 1rem 1rem 2.5rem 1rem; }
+}
+</style>
+"""
 
-    /* ── Badge model: pil dengan sedikit tinggi ───────────── */
-    .model-badge {
-        display: inline-block;
-        padding: .26rem .8rem;
-        border-radius: 999px;
-        font-size: .78rem;
-        font-weight: 700;
-        margin-right: .4rem;
-        box-shadow: var(--lift-1);
-        border: 1px solid rgba(255,255,255,.6);
-    }
-    .badge-prophet  { background:linear-gradient(145deg,#e6efff,#cfe0ff); color:#1746b8; }
-    .badge-xgb      { background:linear-gradient(145deg,#e4fbec,#c9f3da); color:#12693c; }
-    .badge-sarima   { background:linear-gradient(145deg,#fff5da,#ffe9b4); color:#8a5a06; }
-    .badge-ensemble { background:linear-gradient(145deg,#f4e9ff,#e7d6ff); color:#6320a8; }
-    .badge-winner   { background:linear-gradient(145deg,#ffe3e3,#ffc9c9); color:#a11a1a; }
+# Tabel interaktif (st.dataframe) digambar di <canvas> memakai tema bawaan
+# Streamlit, jadi tidak bisa diwarnai lewat CSS biasa; begitu pula daftar pilihan
+# dan kalender yang muncul melayang. Bila tema bawaan dan mode pilihan pengguna
+# berbeda, warnanya dibalik supaya ikut gelap/terang.
+CSS_BALIK_TABEL = """
+<style>
+div[data-testid="stDataFrame"] > div,
+[data-testid="stDateInputCalendar"],
+[data-testid="stTimeInputDropdown"],
+[data-testid$="Dropdown"] { filter: invert(.9) hue-rotate(180deg); }
+</style>
+"""
 
-    /* ── Kotak akurasi & info ─────────────────────────────── */
-    .accuracy-box {
-        padding: 1.05rem 1.2rem;
-        border-radius: 14px;
-        background: linear-gradient(150deg, rgba(30,94,255,.10), rgba(6,182,212,.07));
-        border: 1px solid rgba(30,94,255,.22);
-        box-shadow: var(--lift-1);
-        margin-bottom: 1rem;
-    }
-    .highlight-estimasi {
-        color: var(--sigap-blue-deep) !important;
-        font-size: 1.06rem; font-weight: 800; line-height: 1.6;
-    }
 
-    /* ── Panel bawaan Streamlit: samakan bahasanya ────────── */
-    div[data-testid="stExpander"],
-    div[data-testid="stAlert"],
-    div[data-testid="stDataFrame"],
-    div[data-testid="stTable"] {
-        border-radius: 14px !important;
-        border: 1px solid var(--sigap-line) !important;
-        box-shadow: var(--lift-1);
-        overflow: hidden;
-    }
-    div[data-testid="stExpander"] { background: var(--sigap-surface); }
-
-    /* ── Tab: seperti kartu kecil yang naik saat aktif ────── */
-    .stTabs [data-baseweb="tab-list"] { gap: .4rem; border-bottom: none; }
-    .stTabs [data-baseweb="tab"] {
-        border-radius: 12px 12px 0 0;
-        padding: .55rem 1.05rem;
-        background: rgba(255,255,255,.55);
-        border: 1px solid var(--sigap-line);
-        border-bottom: none;
-        transition: transform .2s ease, box-shadow .2s ease, background .2s ease;
-    }
-    .stTabs [data-baseweb="tab"]:hover { transform: translateY(-2px); }
-    .stTabs [aria-selected="true"] {
-        background: #fff;
-        box-shadow: var(--lift-2);
-        transform: translateY(-3px);
-    }
-
-    /* ── Tombol: timbul, menekan saat diklik ─────────────── */
-    .stButton > button, .stDownloadButton > button, .stLinkButton > a {
-        border-radius: 12px;
-        font-weight: 650;
-        border: 1px solid rgba(30,94,255,.28);
-        box-shadow: var(--lift-1);
-        transition: transform .16s ease, box-shadow .16s ease;
-    }
-    .stButton > button:hover, .stDownloadButton > button:hover, .stLinkButton > a:hover {
-        transform: translateY(-2px);
-        box-shadow: var(--lift-2);
-    }
-    .stButton > button:active, .stDownloadButton > button:active {
-        transform: translateY(0);
-        box-shadow: inset 0 2px 5px rgba(15,23,42,.16);
-    }
-    .stButton > button[kind="primary"] {
-        background: linear-gradient(135deg, var(--sigap-blue), var(--sigap-cyan));
-        border: none; color: #fff;
-    }
-
-    /* ── Sidebar ─────────────────────────────────────────── */
-    section[data-testid="stSidebar"] {
-        background: linear-gradient(185deg, #ffffff 0%, #f3f7ff 100%);
-        border-right: 1px solid var(--sigap-line);
-        box-shadow: 6px 0 26px rgba(15,23,42,.06);
-    }
-
-    /* ── Grafik Plotly ikut mengambang ───────────────────── */
-    div[data-testid="stPlotlyChart"] {
-        border-radius: 16px;
-        background: rgba(255,255,255,.66);
-        border: 1px solid var(--sigap-line);
-        box-shadow: var(--lift-2);
-        padding: .35rem;
-    }
-
-    hr { border-color: var(--sigap-line); }
-
-    /* Hormati pengguna yang mematikan animasi di sistemnya */
-    @media (prefers-reduced-motion: reduce) {
-        * { transition: none !important; animation: none !important; }
-    }
-    /* Di layar sempit, efek angkat dimatikan agar tidak mengganggu */
-    @media (max-width: 640px) {
-        [data-testid="metric-container"]:hover,
-        [data-testid="stMetric"]:hover { transform: none; }
-        .block-container { padding: 1rem 1rem 2.5rem 1rem; }
-    }
-    </style>
-    """, unsafe_allow_html=True)
+def inject_custom_css():
+    css = CSS_DASAR.replace("__TOKEN__", TOKEN_GELAP if GELAP else TOKEN_TERANG)
+    if GELAP != _tema_bawaan_gelap():
+        css += CSS_BALIK_TABEL
+    st.markdown(css, unsafe_allow_html=True)
 
 inject_custom_css()
+
+
+# ============================================================
+# GRAFIK — warna mengikuti mode tampilan
+# ============================================================
+# Satu palet untuk kedua mode: warna bernada sedang yang tetap jelas baik di
+# latar putih maupun biru gelap. Templat ini berlaku untuk semua pengguna,
+# sedangkan latar, teks, dan garis kisi diatur per mode di tampil_grafik().
+
+PALET_SIGAP = ["#2f7bf5", "#14b8a6", "#f59e0b", "#ef4444", "#8b5cf6",
+               "#22c55e", "#ec4899", "#06b6d4", "#f97316", "#64748b"]
+if "sigap" not in pio.templates:
+    _tpl = go.layout.Template(pio.templates["plotly_white"])
+    _tpl.layout.colorway = PALET_SIGAP
+    pio.templates["sigap"] = _tpl
+pio.templates.default = "sigap"
+
+
+def tampil_grafik(fig, wadah=None, **kwargs):
+    """Pengganti st.plotly_chart yang menyesuaikan warna grafik dengan mode.
+
+    Figur asli tidak diubah (yang digambar adalah salinannya), sehingga figur
+    yang sama tetap aman dipakai untuk keperluan lain seperti ekspor.
+    """
+    wadah = wadah or st
+    fig = go.Figure(fig)
+    teks  = "#d6deeb" if GELAP else "#1e293b"
+    redup = "#9aa8bf" if GELAP else "#56637a"
+    garis = "rgba(148,163,184,.18)" if GELAP else "rgba(148,163,184,.30)"
+    fig.update_layout(
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(family='"Source Sans Pro", "Source Sans 3", sans-serif', color=teks),
+        title_font_color=teks,
+        legend=dict(font=dict(color=teks), bgcolor="rgba(0,0,0,0)"),
+        hoverlabel=dict(
+            bgcolor="#172138" if GELAP else "#ffffff",
+            bordercolor=garis,
+            font=dict(color=teks),
+        ),
+        modebar=dict(bgcolor="rgba(0,0,0,0)", color=redup,
+                     activecolor="#eef3fb" if GELAP else "#0f172a"),
+    )
+    fig.update_xaxes(gridcolor=garis, zerolinecolor=garis, linecolor=garis,
+                     tickfont_color=redup, title_font_color=teks)
+    fig.update_yaxes(gridcolor=garis, zerolinecolor=garis, linecolor=garis,
+                     tickfont_color=redup, title_font_color=teks)
+    if fig.layout.coloraxis.colorbar is not None:
+        fig.update_layout(coloraxis_colorbar=dict(
+            tickfont=dict(color=redup), title=dict(font=dict(color=teks))))
+    # Peta: ganti ke basemap gelap/terang yang sepadan
+    gaya_peta = getattr(getattr(fig.layout, "map", None), "style", None)
+    if gaya_peta in ("carto-positron", "carto-darkmatter"):
+        fig.update_layout(map_style="carto-darkmatter" if GELAP else "carto-positron")
+    return wadah.plotly_chart(fig, theme=None, **kwargs)
 
 # ============================================================
 # HEADER
@@ -1248,7 +1604,10 @@ def page_ml_upgraded(df_filtered, filter_info):
 
     eval_df = pd.DataFrame(eval_rows)
     st.dataframe(
-        eval_df.style.highlight_min(subset=["MAE","RMSE","MAPE"], color="#d1fae5"),
+        eval_df.style.highlight_min(
+            subset=["MAE","RMSE","MAPE"],
+            props="background-color:#d1fae5; color:#064e3b; font-weight:700;",
+        ),
         use_container_width=True,
         hide_index=True,
     )
@@ -1261,10 +1620,11 @@ def page_ml_upgraded(df_filtered, filter_info):
     fig.add_trace(go.Scatter(
         x=weekly["ds"], y=weekly["y"],
         mode="lines+markers", name="Aktual",
-        line=dict(color="#1d4ed8", width=2),
+        line=dict(color="#60a5fa" if GELAP else "#1d4ed8", width=2),
     ))
 
-    colors = {"Prophet": "#ef4444", "XGBoost": "#16a34a", "SARIMA": "#d97706"}
+    colors = ({"Prophet": "#f87171", "XGBoost": "#4ade80", "SARIMA": "#fbbf24"} if GELAP
+              else {"Prophet": "#ef4444", "XGBoost": "#16a34a", "SARIMA": "#d97706"})
     for name, r in results.items():
         fc = r["fc"]
         fc_future = fc[fc["ds"] > last_date_ts]
@@ -1282,7 +1642,7 @@ def page_ml_upgraded(df_filtered, filter_info):
             fig.add_trace(go.Scatter(
                 x=ens_future["ds"], y=ens_future["yhat_ensemble"].clip(lower=0),
                 mode="lines+markers", name="⭐ Ensemble",
-                line=dict(color="#7c3aed", width=3),
+                line=dict(color="#a78bfa" if GELAP else "#7c3aed", width=3),
             ))
 
     # Best model confidence interval (Prophet saja yang punya CI lengkap)
@@ -1304,7 +1664,7 @@ def page_ml_upgraded(df_filtered, filter_info):
         legend=dict(orientation="h", yanchor="bottom", y=1.02),
         margin=dict(l=0, r=0, t=30, b=0),
     )
-    st.plotly_chart(fig, use_container_width=True)
+    tampil_grafik(fig, use_container_width=True)
 
     # ── Ringkasan Estimasi ────────────────────────────────
     st.markdown(f"### 📢 Kesimpulan Estimasi Hingga {target_dt.strftime('%d %B %Y')}")
@@ -1391,7 +1751,7 @@ def page_disease_seasonality(df_filtered, filter_info):
             labels={"color":"Jumlah Kasus"},
         )
         fig_heat.update_layout(margin=dict(l=0,r=0,t=40,b=0))
-        st.plotly_chart(fig_heat, use_container_width=True)
+        tampil_grafik(fig_heat, use_container_width=True)
         st.download_button("📥 Download Heatmap Data", convert_df_to_excel(pivot.reset_index()), "heatmap_penyakit.xlsx")
 
     with tab2:
@@ -1407,12 +1767,12 @@ def page_disease_seasonality(df_filtered, filter_info):
             fig = px.bar(
                 top_diag_musim, x="Kasus", y="Diagnosa",
                 orientation="h", title=musim_label,
-                color="Kasus", color_continuous_scale="Blues",
+                color="Kasus", color_continuous_scale=px.colors.sequential.Blues[3:],
                 text="Kasus",
             )
             fig.update_traces(textposition="outside")
             fig.update_layout(coloraxis_showscale=False, height=350, yaxis=dict(categoryorder="total ascending"))
-            col_ui.plotly_chart(fig, use_container_width=True)
+            tampil_grafik(fig, col_ui, use_container_width=True)
 
         st.markdown("#### 📊 Perbandingan Intensitas Penyakit antar Musim")
         st.caption(
@@ -1453,7 +1813,7 @@ def page_disease_seasonality(df_filtered, filter_info):
                 title="Tren Kasus Bulanan per Penyakit",
                 category_orders={"nama_bulan": list(bulan_map.values())},
             )
-            st.plotly_chart(fig_trend, use_container_width=True)
+            tampil_grafik(fig_trend, use_container_width=True)
 
 
 # ══════════════════════════════════════════════════════════════
@@ -1477,13 +1837,19 @@ def page_overview(df_filtered, filter_info):
         trend = df_filtered.groupby(["tahun","bulan","nama_bulan"]).size().reset_index(name="count") \
                            .sort_values(["tahun","bulan"])
         trend["label"] = trend["nama_bulan"].astype(str) + "-" + trend["tahun"].astype(str)
-        st.line_chart(trend.set_index("label")["count"])
+        fig = px.line(trend, x="label", y="count", markers=True,
+                      labels={"label": "Bulan", "count": "Jumlah Kunjungan"})
+        fig.update_layout(margin=dict(l=0, r=0, t=10, b=0), height=360)
+        tampil_grafik(fig, use_container_width=True)
         st.download_button("📥 Download Tren", convert_df_to_excel(trend), "tren_kunjungan.xlsx")
     if "poli" in df_filtered.columns:
         st.markdown("### 🏥 Distribusi Poli")
         df_poli = df_filtered["poli"].value_counts().reset_index()
         df_poli.columns = ["Poli","Jumlah"]
-        st.bar_chart(df_poli.set_index("Poli"))
+        fig = px.bar(df_poli, x="Poli", y="Jumlah", text="Jumlah")
+        fig.update_traces(textposition="outside", cliponaxis=False)
+        fig.update_layout(margin=dict(l=0, r=0, t=30, b=0), height=380)
+        tampil_grafik(fig, use_container_width=True)
 
 
 def page_kunjungan(df_filtered, filter_info):
@@ -1495,12 +1861,18 @@ def page_kunjungan(df_filtered, filter_info):
         df_jk = df_filtered["jenis_kelamin"].value_counts().reset_index()
         df_jk.columns = ["Jenis Kelamin","Jumlah"]
         col1.markdown("#### Jenis Kelamin")
-        col1.bar_chart(df_jk.set_index("Jenis Kelamin"))
+        fig = px.bar(df_jk, x="Jenis Kelamin", y="Jumlah", text="Jumlah")
+        fig.update_traces(textposition="outside", cliponaxis=False)
+        fig.update_layout(margin=dict(l=0, r=0, t=30, b=0), height=360)
+        tampil_grafik(fig, col1, use_container_width=True)
     if "kelompok_umur" in df_filtered.columns:
         df_umur = df_filtered["kelompok_umur"].value_counts().sort_index().reset_index()
         df_umur.columns = ["Kelompok Umur","Jumlah"]
         col2.markdown("#### Kelompok Umur")
-        col2.bar_chart(df_umur.set_index("Kelompok Umur"))
+        fig = px.bar(df_umur, x="Kelompok Umur", y="Jumlah", text="Jumlah")
+        fig.update_traces(textposition="outside", cliponaxis=False)
+        fig.update_layout(margin=dict(l=0, r=0, t=30, b=0), height=360)
+        tampil_grafik(fig, col2, use_container_width=True)
 
 
 def page_penyakit(df_filtered, filter_info):
@@ -1526,16 +1898,16 @@ def page_penyakit(df_filtered, filter_info):
     chart_h = max(350, top_n * 38)
     if orientasi == "Horizontal":
         fig = px.bar(df_diag, x="Jumlah Kasus", y="Diagnosa", orientation="h",
-                     text="Jumlah Kasus", color="Jumlah Kasus", color_continuous_scale="Blues")
+                     text="Jumlah Kasus", color="Jumlah Kasus", color_continuous_scale=px.colors.sequential.Blues[3:])
         fig.update_traces(textposition="outside")
         fig.update_layout(yaxis=dict(categoryorder="total ascending" if ascending else "total descending"),
                           coloraxis_showscale=False, height=chart_h)
     else:
         fig = px.bar(df_diag, x="Diagnosa", y="Jumlah Kasus",
-                     text="Jumlah Kasus", color="Jumlah Kasus", color_continuous_scale="Blues")
+                     text="Jumlah Kasus", color="Jumlah Kasus", color_continuous_scale=px.colors.sequential.Blues[3:])
         fig.update_layout(xaxis=dict(tickangle=-35), coloraxis_showscale=False, height=chart_h)
         
-    st.plotly_chart(fig, use_container_width=True)
+    tampil_grafik(fig, use_container_width=True)
     
     st.markdown("### 📋 Rincian Data Penyakit")
     st.dataframe(df_diag, use_container_width=True, hide_index=True)
@@ -1608,7 +1980,7 @@ def page_peta_persebaran(df_filtered, filter_info):
     
     st.markdown("*(💡 Klik salah satu titik/lingkaran pada peta untuk melihat detail data dari desa tersebut)*")
     
-    map_event = st.plotly_chart(fig, use_container_width=True, on_select="rerun", selection_mode="points")
+    map_event = tampil_grafik(fig, use_container_width=True, on_select="rerun", selection_mode="points")
 
     selected_desa = None
     if map_event and map_event.get("selection") and map_event["selection"].get("points"):
@@ -1625,7 +1997,7 @@ def page_peta_persebaran(df_filtered, filter_info):
         df_desa_diag.columns = ["Diagnosa", "Jumlah Kasus"]
         fig_desa = px.bar(df_desa_diag, x="Jumlah Kasus", y="Diagnosa", orientation="h", color="Jumlah Kasus", color_continuous_scale="Viridis")
         fig_desa.update_layout(yaxis=dict(categoryorder="total ascending"), height=400, margin=dict(l=0, r=0, t=20, b=0))
-        st.plotly_chart(fig_desa, use_container_width=True)
+        tampil_grafik(fig_desa, use_container_width=True)
         
         st.markdown("#### 📋 Data Histori Kunjungan")
         kolom_tabel = [c for c in ["tanggal_kunjungan", "no_rm", "umur", "jenis_kelamin", "diagnosa", "poli"] if c in df_desa_detail.columns]
@@ -1647,7 +2019,10 @@ def page_pembiayaan(df_filtered, filter_info):
     if df_filtered is None or "pembiayaan" not in df_filtered.columns: return
     df_b = df_filtered["pembiayaan"].value_counts().reset_index()
     df_b.columns = ["Pembiayaan","Jumlah"]
-    st.bar_chart(df_b.set_index("Pembiayaan"))
+    fig = px.bar(df_b, x="Pembiayaan", y="Jumlah", text="Jumlah")
+    fig.update_traces(textposition="outside", cliponaxis=False)
+    fig.update_layout(margin=dict(l=0, r=0, t=30, b=0), showlegend=False)
+    tampil_grafik(fig, use_container_width=True)
     st.download_button("📥 Download Pembiayaan", convert_df_to_excel(df_b), "pembiayaan.xlsx")
 
 

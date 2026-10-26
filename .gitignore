@@ -1,0 +1,26 @@
+# ── Berkas yang dikirim asisten ke folder repo ───────────────────────────────
+# Folder ini diisi otomatis saat berkas dikirim ke komputer. Isinya bisa berupa
+# data kunjungan pasien dari RME, jadi tidak boleh pernah ikut ter-commit.
+Claude outputs/
+
+# ── Data pasien hasil gabungan RME ──────────────────────────────────────────
+# Data nyata dipakai untuk pengujian di komputer lokal saja, tidak di repo.
+RME_*.csv
+sigap_input_*.csv
+Data Penyakit*.zip
+
+# ── Sisa unduhan yang gagal ─────────────────────────────────────────────────
+*.crdownload
+*.crdownload.pdf
+
+# ── Berkas kerja Python ─────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.ipynb_checkpoints/
+
+# ── Berkas sistem ───────────────────────────────────────────────────────────
+Thumbs.db
+desktop.ini
+.DS_Store

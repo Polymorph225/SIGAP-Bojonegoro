@@ -1,4 +1,4 @@
-# 🏥 SIGAP-Bojonegoro — Ensemble AI Forecasting Dashboard
+# SIGAP-Bojonegoro — Ensemble AI Forecasting Dashboard
 
 Dashboard analisis & peramalan cerdas data kunjungan Puskesmas dengan arsitektur **Ensemble Model: Prophet + XGBoost + SARIMA + Auto-Selection**.
 
@@ -6,9 +6,9 @@ Dashboard analisis & peramalan cerdas data kunjungan Puskesmas dengan arsitektur
 
 ---
 
-## ✨ Fitur Utama
+## Fitur Utama
 
-### 🆕 Upgrade Model (v2.0)
+### Upgrade Model (v2.0)
 | Fitur | Sebelum (v1) | Sesudah (v2) |
 |---|---|---|
 | Model forecasting | Prophet saja | **Ensemble: Prophet + XGBoost + SARIMA** |
@@ -18,20 +18,20 @@ Dashboard analisis & peramalan cerdas data kunjungan Puskesmas dengan arsitektur
 | Auto-selection model terbaik | ❌ Tidak ada | ✅ MAPE-based weighted ensemble |
 | Granularitas data | Mingguan saja | ✅ Mingguan atau Bulanan |
 
-### 📊 Semua Fitur
+### Semua Fitur
 1. **Dashboard Ringkasan** — Tren kunjungan, distribusi poli, KPI utama
 2. **Analisis Kunjungan** — Demografi gender & kelompok umur
 3. **Analisis Penyakit** — Top diagnosa, grafik interaktif horizontal/vertikal
-4. **🌧️ Penyakit per Musim (BARU)** — Heatmap bulanan, komparasi musim hujan vs kemarau, tren penyakit spesifik
-5. **🗺️ Peta Persebaran** — Geospasial interaktif per desa
-6. **🤖 Ensemble Forecasting (BARU)** — Prophet + XGBoost + SARIMA dengan evaluasi akurasi lengkap
-7. **💳 Analisis Pembiayaan** — Distribusi jenis pembiayaan
-8. **🧹 Kualitas Data** — Missing values, duplikasi
-9. **💬 Asisten AI Gemini** — Konsultasi berbasis data real-time
+4. ** Penyakit per Musim (BARU)** — Heatmap bulanan, komparasi musim hujan vs kemarau, tren penyakit spesifik
+5. ** Peta Persebaran** — Geospasial interaktif per desa
+6. ** Ensemble Forecasting (BARU)** — Prophet + XGBoost + SARIMA dengan evaluasi akurasi lengkap
+7. ** Analisis Pembiayaan** — Distribusi jenis pembiayaan
+8. ** Kualitas Data** — Missing values, duplikasi
+9. ** Asisten AI Gemini** — Konsultasi berbasis data real-time
 
 ---
 
-## 🏗️ Arsitektur Model Ensemble
+## Arsitektur Model Ensemble
 
 ```
 Data Input (idealnya ≥3 tahun, agregat mingguan/bulanan)
@@ -83,7 +83,7 @@ Data Input (idealnya ≥3 tahun, agregat mingguan/bulanan)
 
 ---
 
-## 🚀 Instalasi & Menjalankan
+## Instalasi & Menjalankan
 
 ### Prasyarat
 - Python 3.10 atau lebih baru
@@ -128,7 +128,7 @@ Buka browser di `http://localhost:8501`
 
 ---
 
-## 📂 Struktur Repositori
+## Struktur Repositori
 
 ```
 SIGAP-Bojonegoro/
@@ -153,7 +153,7 @@ SIGAP-Bojonegoro/
 
 ---
 
-## 🧪 Pengujian
+## Pengujian
 
 ```bash
 pip install pytest
@@ -163,7 +163,7 @@ Tes inti (pembacaan berkas RME, pemetaan kolom, fitur musim, evaluasi) hanya but
 
 ---
 
-## 📋 Format Data yang Didukung
+## Format Data yang Didukung
 
 File CSV, Excel, atau **ekspor bulanan RME Sintesa Emas (.xls) apa adanya**. Ekspor RME itu sebenarnya teks berpemisah tab meski berekstensi .xls; aplikasi mengenali jenis berkas dari isinya, bukan dari ekstensinya. Beberapa berkas bulanan boleh diunggah sekaligus — digabung otomatis, baris yang kembar karena rentang tanggal tumpang tindih dibuang sekali. Kolom identitas (nama, NIK, alamat) tidak ikut dimuat.
 
@@ -184,7 +184,7 @@ Kolom-kolom berikut dikenali otomatis (nama fleksibel):
 
 ---
 
-## 🎯 Cara Penggunaan Ensemble Forecasting
+## Cara Penggunaan Ensemble Forecasting
 
 1. Upload file data di sidebar
 2. Atur filter sesuai kebutuhan (opsional)
@@ -229,7 +229,7 @@ Kolom-kolom berikut dikenali otomatis (nama fleksibel):
 
 ---
 
-## 🔮 Roadmap Pengembangan Lanjutan
+## Roadmap Pengembangan Lanjutan
 
 - [ ] Integrasi data curah hujan BMKG sebagai fitur eksogen
 - [ ] Deteksi otomatis outbreak berbasis Z-score / kontrol chart
@@ -239,7 +239,7 @@ Kolom-kolom berikut dikenali otomatis (nama fleksibel):
 
 ---
 
-## 📞 Kontak
+## Kontak
 
 Dikembangkan oleh Tim IT, 
 UPT Puskesmas Purwosari, Kabupaten Bojonegoro
@@ -248,6 +248,6 @@ Untuk pertanyaan atau masukan, buka **Issue** di repositori ini.
 
 ---
 
-## 📄 Lisensi
+## Lisensi
 
 MIT License — lihat file [LICENSE](LICENSE)

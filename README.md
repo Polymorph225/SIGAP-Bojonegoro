@@ -133,7 +133,7 @@ Buka browser di `http://localhost:8501`
 ```
 SIGAP-Bojonegoro/
 │
-├── sigap_bojonegoro.py               # 🔑 Kode utama aplikasi Streamlit
+├── sigap_bojonegoro.py               # Kode utama aplikasi Streamlit
 ├── requirements.txt                  # Daftar library Python
 ├── README.md                         # Dokumentasi ini
 ├── Buku Panduan SIGAP-Bojonegoro.pdf # Panduan pengguna
@@ -188,11 +188,11 @@ Kolom-kolom berikut dikenali otomatis (nama fleksibel):
 
 1. Upload file data di sidebar
 2. Atur filter sesuai kebutuhan (opsional)
-3. Klik menu **"🤖 Ensemble Forecasting"**
+3. Klik menu **"Ensemble Forecasting"**
 4. Pilih jenis analisis: **Diagnosa Penyakit** atau **Poli/Unit**
 5. Pilih item spesifik (misal: "ISPA", "Poli Umum")
 6. Tentukan tanggal target prediksi dan frekuensi (Mingguan/Bulanan)
-7. Klik **"🚀 Jalankan Ensemble Forecasting"**
+7. Klik **"Jalankan Ensemble Forecasting"**
 8. Lihat:
    - Tabel evaluasi akurasi (MAE, RMSE, MAPE) per model
    - Grafik perbandingan semua model + ensemble
@@ -213,7 +213,7 @@ Kolom-kolom berikut dikenali otomatis (nama fleksibel):
 
 ---
 
-## 🛠️ Teknologi
+## Teknologi
 
 | Library | Fungsi |
 |---|---|
